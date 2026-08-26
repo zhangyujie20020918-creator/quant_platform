@@ -1,0 +1,5 @@
+# 统一换行为 LF(Windows 开发机上消除 autocrlf 警告,避免钩子/脚本因 CRLF 出错)
+* text=auto eol=lf
+*.parquet binary
+*.png binary
+*.pdf binary
