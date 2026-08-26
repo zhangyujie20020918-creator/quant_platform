@@ -14,7 +14,7 @@ data:
   freshness_max_lag_days: 2      # 新鲜度红线:数据落后超过N个交易日禁止出信号(按策略可覆盖)
   source_priority: [tushare, akshare]   # 每表主/备源默认优先级,表级可在 schema 覆盖
   fetch:
-    rate_sleep_sec: 0.2          # 每次接口调用后的间隔(代理限速未知,保守起步)
+    rate_sleep_sec: 0.35          # 每次接口调用后的间隔(代理限速未知,保守起步)
     timeout_sec: 30
     max_retries: 4               # 单次调用网络级重试次数
     backoff_sec: 2               # 重试间隔基数(指数退避)

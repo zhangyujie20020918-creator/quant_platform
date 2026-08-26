@@ -1,5 +1,16 @@
 # CHANGELOG
 
+## 2026-08-26 数据源:官方 Tushare token 接入(代理弃用)
+
+- 咸鱼代理(jiaoch.site)证实不可靠:新代理 token 首调成功后约 20~30 次即全接口"接口用法错误"
+  (每日配额耗尽,冷却无效)。**弃用代理。**
+- 人类购买官方 Tushare 积分,token 接入 config.yaml,base_url 改 `http://api.tushare.pro`。
+  实测:daily 5546 行/日、adj_factor 5564 行/日全部正常;编排层主源回归 tushare;
+  **退市体检 passed=True(339 只退市股)**——幸存者偏差防线通过,数据地基立住。
+- rate_sleep_sec 0.2→0.35(≈170次/分钟,稳在官方 200/min 档下)。
+- ETF(fund_daily)/指数(index_daily)口径不敏感,继续走 AKShare 免费省 Tushare 配额。
+
+
 ## 2026-08-26 卡1 · 数据层(代码完成,全量回补阻塞于 Tushare token 续期)
 
 - 交付六件:`data/schema.py`(表注册表 TableSpec + 统一类型校验)、`data/store.py`
