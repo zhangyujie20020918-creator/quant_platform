@@ -33,6 +33,18 @@ def _bare(symbol):
     return symbol.split(".")[0]
 
 
+def _add_suffix(code):
+    """裸 6 位代码 -> '600000.SH' 形式(A股交易所后缀,统一 symbol 口径)。
+    6/9→SH(沪主板/B股);0/2/3→SZ(深主板/B股/创业板);4/8→BJ(北交所)。"""
+    code = str(code).zfill(6)
+    head = code[0]
+    if head in ("6", "9"):
+        return code + ".SH"
+    if head in ("4", "8"):
+        return code + ".BJ"
+    return code + ".SZ"
+
+
 class AksharesSource(Source):
     name = "akshare"
 
@@ -128,7 +140,7 @@ class AksharesSource(Source):
         raw = self._call("stock_info_a_code_name")
         if raw is None or raw.empty:
             return pd.DataFrame(columns=list(get_spec("stock_basic").columns))
-        df = pd.DataFrame({"symbol": raw["code"].astype(str), "name": raw["name"].astype(str)})
+        df = pd.DataFrame({"symbol": raw["code"].map(_add_suffix), "name": raw["name"].astype(str)})
         df["exchange"] = None
         df["market"] = None
         df["list_status"] = "L"        # akshare 该接口只给在市股,退市/暂停用主源

@@ -36,6 +36,14 @@ CFG = {"data": {"symbols": {"index": ["000300.SH"], "etf": ["511010.SH"], "stock
                 "backfill_start": "2010-01-01"}}
 
 
+def test_stock_basic_adds_exchange_suffix_to_bare_codes():
+    raw = pd.DataFrame({"code": ["600000", "000001", "300750", "830799", "688981"],
+                        "name": ["浦发银行", "平安银行", "宁德时代", "艾融软件", "中芯国际"]})
+    src = AksharesSource(CFG, ak=_FakeAK({"stock_info_a_code_name": raw}))
+    df = src.fetch("stock_basic", "all")
+    assert df["symbol"].tolist() == ["600000.SH", "000001.SZ", "300750.SZ", "830799.BJ", "688981.SH"]
+
+
 def test_is_source_and_supports_subset():
     src = AksharesSource(CFG, ak=_FakeAK({}))
     assert isinstance(src, Source) and src.name == "akshare"
