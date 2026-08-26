@@ -15,11 +15,12 @@ data:
   source_priority: [tushare, akshare]   # 每表主/备源默认优先级,表级可在 schema 覆盖
   fetch:
     rate_sleep_sec: 0.35          # 每次接口调用后的间隔(代理限速未知,保守起步)
-    timeout_sec: 30
+    timeout_sec: 60
     max_retries: 4               # 单次调用网络级重试次数
     backoff_sec: 2               # 重试间隔基数(指数退避)
     rate_limit_sleep_sec: 20     # 触发"每分钟访问上限"类错误时的等待
-    source_fail_threshold: 5     # 连续N个分片失败→该来源标记不可用,切备源
+    chunk_retries: 2            # 瞬断分片在同源内重试遍数(不切换来源,防静默缺数据)
+    table_retries: 2            # 整表仍有缺口时重试整表遍数(resume只补缺口),最终仍缺则ERROR报警
   symbols:                       # 指数/ETF 清单在此维护,不写死在代码里
     index: ["000300.SH", "000905.SH", "000852.SH", "000001.SH"]
     index_weight: ["000300.SH"]  # 需要历史成分权重的指数(按指数×年分片)

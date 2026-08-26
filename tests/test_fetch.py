@@ -85,17 +85,81 @@ def test_source_unavailable_switches_to_backup(tmp_path):
     assert (df["source"] == "akshare").all()
 
 
-def test_consecutive_failures_trip_source_switch(tmp_path):
+def test_transient_failures_do_not_switch_to_incomplete_backup(tmp_path):
+    """核心回归:主源瞬断(非SourceUnavailable)绝不能切到覆盖不了这些分片的备源、
+    然后把缺数据的表当'完成'。必须留在主源、如实报 failed,不静默切换。
+    (这正是全市场回补只拉到2014就'完成'那个数据完整性bug的复现。)"""
     root = str(tmp_path)
     chunks = ("20260105", "20260106", "20260107")
-    raise_all = {("stock_daily", c): ConnectionError("net") for c in chunks}
+    raise_all = {("stock_daily", c): ConnectionError("net drop") for c in chunks}
     primary = _daily_source("tushare", chunks=chunks, raise_on=raise_all)
-    backup = _daily_source("akshare", close=9.0, chunks=chunks)
+    backup = FakeSource("akshare", ["stock_daily"], {"stock_daily": []})   # 备源对该表空plan(现实:stock_patch=[])
     res = fetch.fetch_table("stock_daily", "2026-01-05", "2026-01-07", sources=[primary, backup], root=root,
-                            cfg={"data": {"fetch": {"source_fail_threshold": 2}}})
-    assert res["source_used"] == "akshare"
-    assert len(primary.records) == 2       # 连续2次失败即熔断,不跑第3个分片
-    assert store.read_table("stock_daily", root=root)["close"].tolist() == [9.0]
+                            cfg={}, chunk_retries=1)
+    assert res["source_used"] == "tushare"       # 没切走
+    assert res["failed"] == 3 and res["fetched"] == 0
+    assert backup.records == []                  # 备源根本没被调用
+    assert store.read_table("stock_daily", root=root).empty
+
+
+def test_fetch_table_retries_failed_chunks_on_same_source(tmp_path):
+    """瞬断分片在同一来源内重试;临时故障恢复后应补齐。"""
+    root = str(tmp_path)
+
+    class FlakyOnce(FakeSource):
+        def __init__(self):
+            super().__init__("tushare", ["stock_daily"], {"stock_daily": ["20260105", "20260106"]},
+                             rows_by_chunk={("stock_daily", "20260105"): 1.0, ("stock_daily", "20260106"): 2.0})
+            self._failed_once = set()
+
+        def fetch(self, table, chunk):
+            if chunk == "20260106" and chunk not in self._failed_once:
+                self._failed_once.add(chunk)
+                self.records.append((table, chunk))
+                raise ConnectionError("transient")
+            return super().fetch(table, chunk)
+
+    src = FlakyOnce()
+    res = fetch.fetch_table("stock_daily", "2026-01-05", "2026-01-06", sources=[src], root=root, cfg={}, chunk_retries=2)
+    assert res["fetched"] == 2 and res["failed"] == 0        # 第二遍补齐
+    assert store.table_status("stock_daily", root=root)["rows"] == 1   # 两分片同键合并
+
+
+def test_persistent_failure_recorded_once_after_retries(tmp_path):
+    root = str(tmp_path)
+    src = _daily_source("tushare", raise_on={("stock_daily", "20260106"): ValueError("bad row")})
+    res = fetch.fetch_table("stock_daily", "2026-01-05", "2026-01-06", sources=[src], root=root, cfg={}, chunk_retries=2)
+    assert res["fetched"] == 1 and res["failed"] == 1
+    fails = pd.read_csv(os.path.join(root, "cache", "fetch_failures.csv"), dtype=str)
+    assert len(fails) == 1        # 重试多次,但只在最终放弃时记一条
+
+
+def test_fetch_tables_retries_table_with_failures_then_reports(tmp_path, caplog):
+    """整表若仍有失败分片,fetch_tables 要重试并最终大声报警,绝不静默当完成。"""
+    import logging
+    root = str(tmp_path)
+
+    class FlakyTable(FakeSource):
+        def __init__(self):
+            super().__init__("tushare", ["stock_daily"], {"stock_daily": ["20260105", "20260106"]},
+                             rows_by_chunk={("stock_daily", c): 1.0 for c in ["20260105", "20260106"]})
+            self.calls_for_06 = 0
+
+        def fetch(self, table, chunk):
+            if chunk == "20260106":
+                self.calls_for_06 += 1
+                if self.calls_for_06 <= 3:      # 头几次(含表级重试)都失败
+                    self.records.append((table, chunk))
+                    raise ConnectionError("net")
+            return super().fetch(table, chunk)
+
+    src = FlakyTable()
+    with caplog.at_level(logging.WARNING):
+        results = fetch.fetch_tables(["stock_daily"], "2026-01-05", "2026-01-06",
+                                     cfg={}, root=root, sources_factory=lambda cfg, root: [src],
+                                     chunk_retries=0, table_retries=3)
+    assert results["stock_daily"]["failed"] == 0     # 表级重试最终补齐
+    assert "重试" in caplog.text
 
 
 def test_no_source_supports_table_raises(tmp_path):

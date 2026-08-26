@@ -51,13 +51,56 @@ def _default_sources(cfg, root):
     return out
 
 
-def fetch_table(table, start, end, sources=None, cfg=None, root=None, force=False):
-    """拉一张表。返回 {source_used, fetched, skipped, failed}。"""
+def _fetch_with_source(src, table, start, end, root, force, chunk_retries):
+    """在单个来源上拉全表分片,失败分片在同源内重试 chunk_retries 遍。
+    返回 (result_dict, unavailable_error):
+      - 若来源报 SourceUnavailable(鉴权/整体不可用)→ (None, error),调用方应切下一来源;
+      - 否则 → ({fetched, skipped, failed}, None)。瞬断分片重试后仍失败的,只在最终放弃时记一条。
+    **不因累计瞬断失败切换来源**——工作中的主源只是网络抖动,切到覆盖不了的备源会造成静默缺数据。"""
+    fetched = skipped = 0
+    pending = []
+    for chunk in src.plan(table, start, end):
+        closed = not src.is_open_chunk(table, chunk)
+        if closed and not force and store.has_part(table, src.name, chunk, root=root):
+            skipped += 1
+        else:
+            pending.append(chunk)
+
+    last_error = None
+    for attempt in range(chunk_retries + 1):
+        if not pending:
+            break
+        if attempt > 0:
+            log.warning("来源 %s 表 %s 有 %d 个分片待重试(第 %d 遍)", src.name, table, len(pending), attempt)
+        still_failing = []
+        for chunk in pending:
+            try:
+                df = src.fetch(table, chunk)
+                store.write_part(table, src.name, chunk, df, root=root)
+                fetched += 1
+            except SourceUnavailable as e:
+                return None, e                       # 整体不可用 → 切来源
+            except Exception as e:
+                last_error = e
+                still_failing.append(chunk)
+        pending = still_failing
+
+    for chunk in pending:                            # 重试耗尽仍失败的,记一次账
+        _record_failure(root, table, src.name, chunk, last_error)
+        log.warning("拉取 %s[%s] 分片 %s 最终失败: %s", table, src.name, chunk, last_error)
+    return {"fetched": fetched, "skipped": skipped, "failed": len(pending)}, None
+
+
+def fetch_table(table, start, end, sources=None, cfg=None, root=None, force=False, chunk_retries=None):
+    """拉一张表。返回 {source_used, fetched, skipped, failed}。
+    来源切换只在 SourceUnavailable(鉴权/整体不可用)时发生;瞬断分片在同源内重试,
+    不切换、不静默产生缺口(数据完整性:缺口如实记入 failed,由 fetch_tables 重试或报警)。"""
     cfg = cfg if cfg is not None else load_config()
     root = root or ROOT
     get_spec(table)   # 未注册表直接报错
     sources = sources if sources is not None else _default_sources(cfg, root)
-    threshold = get(cfg, "data.fetch.source_fail_threshold", 5)
+    if chunk_retries is None:
+        chunk_retries = get(cfg, "data.fetch.chunk_retries", 2)
 
     candidates = [s for s in sources if s.supports(table)]
     if not candidates:
@@ -65,51 +108,44 @@ def fetch_table(table, start, end, sources=None, cfg=None, root=None, force=Fals
 
     last_error = None
     for src in candidates:
-        fetched = skipped = failed = consecutive = 0
-        unavailable = False
-        for chunk in src.plan(table, start, end):
-            closed = not src.is_open_chunk(table, chunk)
-            if closed and not force and store.has_part(table, src.name, chunk, root=root):
-                skipped += 1
-                continue
-            try:
-                df = src.fetch(table, chunk)
-                store.write_part(table, src.name, chunk, df, root=root)
-                fetched += 1
-                consecutive = 0
-            except SourceUnavailable as e:
-                log.warning("来源 %s 不可用(%s),切换下一来源", src.name, e)
-                last_error = e
-                unavailable = True
-                break
-            except Exception as e:
-                failed += 1
-                consecutive += 1
-                last_error = e
-                _record_failure(root, table, src.name, chunk, e)
-                log.warning("拉取 %s[%s] 分片 %s 失败: %s", table, src.name, chunk, e)
-                if consecutive >= threshold:
-                    log.warning("来源 %s 连续 %d 次失败,熔断切换", src.name, consecutive)
-                    unavailable = True
-                    break
-        if unavailable:
+        result, unavailable = _fetch_with_source(src, table, start, end, root, force, chunk_retries)
+        if result is None:
+            log.warning("来源 %s 不可用(%s),切换下一来源", src.name, unavailable)
+            last_error = unavailable
             continue
         store.consolidate(table, cfg=cfg, root=root)
-        return {"source_used": src.name, "fetched": fetched, "skipped": skipped, "failed": failed}
+        return {"source_used": src.name, **result}
 
     raise RuntimeError("表 %s 所有来源均不可用,最后错误: %s" % (table, last_error))
 
 
-def fetch_tables(tables, start=None, end=None, cfg=None, root=None, force=False):
+def fetch_tables(tables, start=None, end=None, cfg=None, root=None, force=False,
+                 sources_factory=None, chunk_retries=None, table_retries=None):
+    """批量拉取。整表若仍有失败分片,重试整表 table_retries 遍(resume 会跳过已成功分片、
+    只补缺口);最终仍有缺口的,ERROR 级大声报警,绝不静默当完成。"""
     cfg = cfg if cfg is not None else load_config()
     root = root or ROOT
     start = start or get(cfg, "data.backfill_start", "2010-01-01")
     end = end or _dt.date.today().isoformat()
+    if table_retries is None:
+        table_retries = get(cfg, "data.fetch.table_retries", 2)
+    factory = sources_factory or _default_sources
     results = {}
     for table in tables:
         log.info("=== 拉取 %s (%s → %s) ===", table, start, end)
-        results[table] = fetch_table(table, start, end, cfg=cfg, root=root, force=force)
-        log.info("%s 完成: %s", table, results[table])
+        res = fetch_table(table, start, end, sources=factory(cfg, root), cfg=cfg, root=root,
+                          force=force, chunk_retries=chunk_retries)
+        passes = 0
+        while res["failed"] > 0 and passes < table_retries:
+            passes += 1
+            log.warning("%s 有 %d 个分片失败,重试整表(第 %d 遍,resume 只补缺口)", table, res["failed"], passes)
+            res = fetch_table(table, start, end, sources=factory(cfg, root), cfg=cfg, root=root,
+                              force=force, chunk_retries=chunk_retries)
+        results[table] = res
+        if res["failed"] > 0:
+            log.error("⚠ %s 重试后仍有 %d 个分片失败——数据不完整!见 cache/fetch_failures.csv,勿当完成使用", table, res["failed"])
+        else:
+            log.info("%s 完成: %s", table, res)
     return results
 
 
