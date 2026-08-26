@@ -1,0 +1,15 @@
+# 凭证与快照永不入git(pre-commit另有硬闸)
+config.yaml
+config.snapshot.yaml
+
+# 数据缓存(可由fetcher重建,不备份不入库)
+cache/
+
+# run产出目录统一 *_runs/ 后缀排除;reports/下的md报告默认入git(蓝图裁决:报告是决策链证据)
+*_runs/
+
+# 环境与临时
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/

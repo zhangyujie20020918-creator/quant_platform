@@ -1,0 +1,29 @@
+# quant_platform 配置(结构快照,入git;真实配置复制为 config.yaml 并填凭证,永不入git)
+# 原则:代码与文档只写机制,一切数值判据住这里;改动走"批前声明+修订记账"(SOP阈值治理)
+
+meta:
+  cache_dir: cache            # 相对仓库根
+  reports_dir: reports
+
+calendar:
+  file: cache/calendar/trading_days.csv   # 卡1 fetcher落盘;文件不存在时退化为周内近似(不可用于出信号)
+
+data:
+  backfill_start: "2010-01-01"   # 历史回补起点(人类裁决默认值,可改)
+  freshness_max_lag_days: 2      # 新鲜度红线:数据落后超过N个交易日禁止出信号(按策略可覆盖)
+  source_priority: [tushare, akshare]   # 每表主/备源默认优先级,表级可覆盖(卡1 schema注册表使用)
+
+credentials:
+  tushare:
+    token: REPLACE_ME
+    base_url: REPLACE_ME       # 官方 api.tushare.pro 或第三方代理
+
+protocol:                      # 防挖矿协议阈值(全部为可改默认值;批前书面声明本批采用值)
+  ic_min: 0.03                 # 样本内|IC|门槛
+  icir_min: 0.3                # 样本内|ICIR|门槛
+  monotonicity_min: 0.8        # 分组单调性门槛
+  oos_retention_min: 0.5       # 样本外强度保留比例门槛
+  bh_alpha: 0.05               # Benjamini-Hochberg 校正显著性水平
+  positive_control_tolerance: 0.4   # 阳性对照:已知因子复现容差(±)
+  redundancy_corr_max: 0.6     # 与active因子的冗余相关阈值
+  cross_engine_tolerance_pct: 1.5   # S4交叉验证:独立引擎复现偏差容差(百分点)
