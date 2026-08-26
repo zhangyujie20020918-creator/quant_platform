@@ -1,5 +1,24 @@
 # CHANGELOG
 
+## 2026-08-26 卡1 · 数据层(代码完成,全量回补阻塞于 Tushare token 续期)
+
+- 交付六件:`data/schema.py`(表注册表 TableSpec + 统一类型校验)、`data/store.py`
+  (分片`_parts/{source}__{chunk}`→合并表,来源优先级去重、断点续传、原子写)、
+  `data/fetchers/`(base 接口 + tushare HTTP 客户端 + akshare 备源,两源均带重试)、
+  `data/fetch.py`(编排:失败记 fetch_failures.csv + 来源熔断切换 + CLI)、
+  `data/quality.py`(体检四项 + md/csv 报告)、`data/DATA_DICTIONARY.md`(8 表字段单位表)。
+- 首批 8 表:trade_cal / stock_basic(含退市)/ stock_daily(不复权原始存储)/ adj_factor /
+  namechange / index_daily / index_weight / fund_daily。指数与 ETF 清单在 config 维护不写死。
+- **69 个测试全绿**(不触网,来源注入替身;分片/合并/去重/断点续传/失败记账/来源切换/体检四项全覆盖)。
+- **真实网络验证 + 双源设计经受实战**:Tushare 代理端点迁到 `/api`;**Tushare token 已过期**
+  → 被正确识别为 SourceUnavailable → 编排层自动切 AKShare → 实拉 trade_cal 8797 行、
+  stock_basic 5550 行、浦发日线 3996 行、国债ETF 3263 行;交易日历导出后 core.calendar 切 file 模式;
+  体检报告产出(退市样本项正确报警:无 Tushare 则 0 退市股,幸存者偏差防线生效)。
+- 发现并修复:AKShare 源缺瞬断重试(其端点会间歇断连),TDD 补测后加 `_call` 重试包装。
+- ⛔ **阻塞**:退市股/adj_factor/namechange/index_weight 四类口径敏感表 AKShare 无法替代,
+  全量回补与示踪弹(卡7)需人类续 Tushare token 后方可跑真实数据。基础设施已就绪、可断点续传。
+
+
 ## 2026-08-26 卡0 · 仓库奠基(2026-08-24 放行开工,08-26 收尾)
 
 - 蓝图v2 + SOP v2 经人类放行后开工。git init(main分支),宪法入驻:SOP.md /

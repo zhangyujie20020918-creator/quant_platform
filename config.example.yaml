@@ -6,17 +6,30 @@ meta:
   reports_dir: reports
 
 calendar:
-  file: cache/calendar/trading_days.csv   # 卡1 fetcher落盘;文件不存在时退化为周内近似(不可用于出信号)
+  file: cache/calendar/trading_days.csv   # data.fetch 拉取 trade_cal 后导出;文件不存在时退化为周内近似(不可用于出信号)
+  exchange: SSE                           # 日历以哪个交易所为准
 
 data:
   backfill_start: "2010-01-01"   # 历史回补起点(人类裁决默认值,可改)
   freshness_max_lag_days: 2      # 新鲜度红线:数据落后超过N个交易日禁止出信号(按策略可覆盖)
-  source_priority: [tushare, akshare]   # 每表主/备源默认优先级,表级可覆盖(卡1 schema注册表使用)
+  source_priority: [tushare, akshare]   # 每表主/备源默认优先级,表级可在 schema 覆盖
+  fetch:
+    rate_sleep_sec: 0.2          # 每次接口调用后的间隔(代理限速未知,保守起步)
+    timeout_sec: 30
+    max_retries: 4               # 单次调用网络级重试次数
+    backoff_sec: 2               # 重试间隔基数(指数退避)
+    rate_limit_sleep_sec: 20     # 触发"每分钟访问上限"类错误时的等待
+    source_fail_threshold: 5     # 连续N个分片失败→该来源标记不可用,切备源
+  symbols:                       # 指数/ETF 清单在此维护,不写死在代码里
+    index: ["000300.SH", "000905.SH", "000852.SH", "000001.SH"]
+    index_weight: ["000300.SH"]  # 需要历史成分权重的指数(按指数×年分片)
+    etf: ["511010.SH", "511260.SH", "511380.SH", "159926.SZ"]   # 示例:国债ETF/十年国债ETF/可转债ETF/国债ETF(深)
+    stock_patch: []              # akshare 备源按标的修补 stock_daily 的清单(主源缺口时手工填,默认空)
 
 credentials:
   tushare:
     token: REPLACE_ME
-    base_url: REPLACE_ME       # 官方 api.tushare.pro 或第三方代理
+    base_url: REPLACE_ME       # 例:官方 http://api.tushare.pro,或第三方代理 http://host/api
 
 protocol:                      # 防挖矿协议阈值(全部为可改默认值;批前书面声明本批采用值)
   ic_min: 0.03                 # 样本内|IC|门槛
@@ -27,3 +40,9 @@ protocol:                      # 防挖矿协议阈值(全部为可改默认值;
   positive_control_tolerance: 0.4   # 阳性对照:已知因子复现容差(±)
   redundancy_corr_max: 0.6     # 与active因子的冗余相关阈值
   cross_engine_tolerance_pct: 1.5   # S4交叉验证:独立引擎复现偏差容差(百分点)
+
+quality:                       # S1 体检四项判据(可改默认值;批前声明)
+  min_delisted_count: 100      # ①stock_basic 中退市股至少这么多,否则视为幸存者偏差样本
+  max_snapshot_gap_days: 45    # ②index_weight 相邻快照最大间隔(月度快照应≤45天)
+  max_dirty_ratio: 0.001       # ③脏值行占比上限
+  min_daily_coverage: 0.95     # ④每交易日在册股票的日线覆盖率下限
