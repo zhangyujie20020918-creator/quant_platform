@@ -72,3 +72,10 @@
   (写自定义 AbstractDataSource / bundle 转换),不放弃数据主权与单一真相源。
 - 后果:卡3 = RQAlpha 接我们 store 的适配层 + 红线核对(用 RQAlpha 内置规则但数据是我们的);
   RQAlpha 的 ricequant bundle 仅作离线参照,不作生产数据源。
+
+## 2026-08-27 卡3 阶段A · Spike 成功(RQAlpha 跑通我们的 store 数据)
+
+- 数据地基全完成:stock_daily 1430万行 + adj_factor 1496万行,均 2010→2026-08-26。
+- 卡3 spike 证伪化解:3个小文件让 RQAlpha 引擎读我们的 stock_daily(register_day_bar_store 替换 +
+  mod 注入数据源)。铁证:RQAlpha 以 15.93 买入 000001 = 我们 store 当日收盘。接入成本远低于
+  "21~31方法"最坏估计。阶段B 待补:ex_factor/日历/instruments/停牌/ST/成分也换我们的。

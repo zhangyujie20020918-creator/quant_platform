@@ -57,3 +57,20 @@ RQAlpha 数据源需要喂的东西 ← 我们 store 的对应表:
 
 ## 施工记录
 (收尾时填)
+
+## 施工记录
+
+### 阶段A · Spike 成功(2026-08-27)
+**结论:RQAlpha 接我们 store 的路径证伪化解成功,接入成本远低于对比报告最坏估计。**
+- 只用 3 个小文件(research/engine_probe/ 下,gitignore):store_datasource.py(StoreDayBarStore
+  读 stock_daily→RQAlpha bar 结构数组 + StoreDataSource 子类化 BaseDataSource 复用 bundle 管道、
+  仅 register_day_bar_store 替换 CS 日线)、store_mod.py(start_up 里 env.set_data_source)、
+  run_spike.py(buy_and_hold on 000001)。
+- **铁证**:RQAlpha 2011-01-05 以 15.93 买入 000001,= 我们 store 的 000001.SZ 当日收盘 15.93,
+  证明引擎读的是我们的价格。245 交易日跑通,期末 96.88 万(平安2011跌~3%,合理)。
+- 关键机制:BaseDataSource 是可插拔 store 架构(register_day_bar_store/instruments/dividend/split/
+  ex_factor);main.py 先跑 mod.start_up 再 `if not hasattr(env,'data_source')`,故 mod 设源即覆盖默认。
+- **spike 局限(阶段B待补)**:仍用 bundle 的 ex_factor(复权)/日历/instruments/停牌/ST/成分;
+  阶段B 要把这些也换成我们的(adj_factor→ex_factor_store,stock_basic→instruments 含退市,
+  trade_cal→calendar,namechange→ST,index_weight→成分),并解决 .SH↔.XSHG 全流程映射。
+- **裁决止损点未触发**:接口深度可控,继续阶段B。
