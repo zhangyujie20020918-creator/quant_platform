@@ -65,3 +65,10 @@
   需转格式(会漂移)或写21~31方法数据源;符号.XSHG口径不同。
 - 对比报告 reports/2026-08-27_引擎调研/engine_comparison.md;**建议自研轻量**(数据主权+可审计
   优先,RQAlpha留作卡3交叉验证参照)。→ 待人类裁决。
+
+## 2026-08-27 卡2 裁决:RQAlpha 引擎 + 我们的 store 数据
+
+- 人类裁决(平台方原建议自研):**卡3 引擎走 RQAlpha,但喂我们校验过的 store 数据**
+  (写自定义 AbstractDataSource / bundle 转换),不放弃数据主权与单一真相源。
+- 后果:卡3 = RQAlpha 接我们 store 的适配层 + 红线核对(用 RQAlpha 内置规则但数据是我们的);
+  RQAlpha 的 ricequant bundle 仅作离线参照,不作生产数据源。

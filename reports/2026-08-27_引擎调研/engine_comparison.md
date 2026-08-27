@@ -82,3 +82,10 @@ store 覆盖或对账。自研需要工作量,换来的是每条规则可审计�
 - RQAlpha 6.3.0 装于 `research/engine_probe/.venv_probe`(gitignore),不进主 requirements。
 - 自研侧代码(已入主库,92+测试绿):`backtest/engine.py` `backtest/prices.py`
   `instruments/universe.py` `strategies/toy_lowvol.py` `backtest/run_toy_backtest.py`。
+
+## 六、人类裁决(2026-08-27)
+
+**裁决:引擎走 RQAlpha,数据用我们的 store(RQAlpha 接自定义数据源)。**
+即采纳第四节选项 2 的方向:接受写 RQAlpha 自定义数据源/格式转换的厚适配成本,换取
+"数据主权 + store 唯一真相源"不放弃。卡3 据此实现:RQAlpha 引擎 + 我们校验过的 Tushare 数据。
+(平台方原建议自研,人类在知悉权衡后选 RQAlpha+我们数据,尊重裁决。)
