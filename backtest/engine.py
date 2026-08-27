@@ -4,7 +4,7 @@
 口径(A股真实性红线的最小子集,卡3 补全):
 - T 日收盘出信号 → T+1 开盘执行(避免未来函数)
 - 目标权重按总权益分配,买入用可用现金约束,逐日按收盘 mark-to-market
-- 佣金 + 单边滑点(买抬价、卖压价);无价格(停牌/缺数据)的标的当日跳过
+- 佣金 + 单边滑点(买抬价、卖压价);无价格(停牌/缺数据)的标的当日不交易,持仓按末次有效价估值
 - 持有至下个调仓日;调仓=向目标权重靠拢(不在目标里的清仓)
 
 不含(卡3 补):涨跌停不可成交、退市清算、整手约束、ST 过滤、参与率上限。
@@ -50,6 +50,7 @@ def run_backtest(rebalance_dates, target_weights, opens, closes, init_cash=1_000
 
     cash = float(init_cash)
     positions = {}                 # symbol -> shares
+    last_px = {}                   # symbol -> 末次有效收盘价(停牌日估值用;卡3 交叉验证发现按 0 估值之债)
     pending_target = None          # 次日开盘要执行的目标权重
     nav_records, trades = [], []
 
@@ -57,12 +58,16 @@ def run_backtest(rebalance_dates, target_weights, opens, closes, init_cash=1_000
         # 1) 开盘:执行昨日信号产生的调仓
         if pending_target is not None:
             cash, positions, day_trades = _rebalance(cash, positions, pending_target,
-                                                      opens.loc[day], cost, day)
+                                                      opens.loc[day], cost, day, last_px)
             trades.extend(day_trades)
             pending_target = None
 
-        # 2) 盘后:按收盘估值
-        nav = _mark_to_market(cash, positions, closes.loc[day])
+        # 2) 盘后:按收盘估值(无收盘的持仓沿用末次有效价)
+        close_row = closes.loc[day]
+        for sym in positions:
+            if _valid(close_row.get(sym, np.nan)):
+                last_px[sym] = float(close_row[sym])
+        nav = _mark_to_market(cash, positions, close_row, last_px)
         nav_records.append((day, nav))
 
         # 3) 若今天是调仓信号日 → 明天开盘执行(存在明天才排单)
@@ -76,20 +81,22 @@ def run_backtest(rebalance_dates, target_weights, opens, closes, init_cash=1_000
             "positions_end": dict(positions)}
 
 
-def _mark_to_market(cash, positions, close_row):
+def _mark_to_market(cash, positions, price_row, last_px=None):
     value = cash
     for sym, shares in positions.items():
-        px = close_row.get(sym, np.nan)
+        px = price_row.get(sym, np.nan)
+        if not _valid(px) and last_px:
+            px = last_px.get(sym, np.nan)
         if _valid(px):
             value += shares * px
     return value
 
 
-def _rebalance(cash, positions, target_weights, open_row, cost, day):
+def _rebalance(cash, positions, target_weights, open_row, cost, day, last_px=None):
     """把持仓向 target_weights 靠拢,按 open_row 成交。返回 (cash, positions, trades)。"""
     positions = dict(positions)
     trades = []
-    equity = _mark_to_market(cash, positions, open_row)
+    equity = _mark_to_market(cash, positions, open_row, last_px)
 
     # ① 卖出:不在目标里的清仓(有有效价才卖)
     for sym in list(positions):

@@ -89,3 +89,27 @@ RQAlpha 数据源需要喂的东西 ← 我们 store 的对应表:
 - 测试 92→136 全绿(合成 store `tests/rq_seed.py`,无 bundle 无网)。环境:rqalpha 6.3.0 入主 .venv(numpy 降 1.26.4)。
 - **阶段C 待办**:红线逐条核对(涨跌停/停牌/退市清算/T+1/全成本——RQAlpha 提示 `base.capital_gain_tax_rate` 需显式配置)、
   玩具策略 RQAlpha 版、与自研净值交叉验证。局限:上市首日涨跌停以 NaN(无限制)近似;ETF/基金未接入 instruments。
+
+### 阶段C · 红线验收 + 玩具策略 RQAlpha 版 + 交叉验证(2026-08-28,卡3 收尾,待人类验收)
+**结论:三条放行判据全部满足——RQAlpha 在 store 数据上跑通玩具策略并出净值/报告;数据源与红线均有合成 store 测试;
+与自研净值交叉验证通过且差异有解释。**
+- **红线清单落地**(蓝图第七节):`instruments/cn_stock_redlines.md`(A股股票品种包,R1-R7 条目↔测试映射),验收测试
+  `tests/test_cn_stock_redlines.py` 一次合成回测按日期触发七个场景,**7/7 通过**:前复权 / 涨停不可买·跌停不可卖 / 停牌拒单 /
+  ST 过滤 / 退市股在池+退市按末价折现 / T+1 / 全成本。
+- **成本模型**:`backtest/rqalpha_adapter/costs.py` RuleTableStockCostDecider——佣金/最低佣金/印花税(卖出,按生效日)/
+  过户费(双边,按生效日)全部来自品种规则表 config `instruments.cn_stock.costs`,替换 RQAlpha 默认万8/0.05%;mod 里注册,
+  mod config `costs` 可覆盖个别键(交叉验证对齐口径用)。
+- **玩具策略 RQAlpha 版** `strategies/toy_lowvol_rq.py`:与自研共用 `select_low_vol`(从 toy_lowvol 提出的唯一选券函数)、
+  同一 universe(instruments.universe PIT)、同一调仓日历(core.calendar);信号=调仓日收盘 history_bars,执行=次日
+  `open_auction` 按开盘价先清非目标→减仓→依剩余现金整手买入(`plan_rebalance` 纯函数有测试)。RQAlpha 日频只有收盘撮合,
+  T+1 开盘只能走集合竞价且不加滑点;`order_value/order_target_percent` 下单时按当时现金截断,故用 `order_shares` 自算数量。
+- **交叉验证(SOP S4)** 2011-06→2022-06 沪深300 低波20 月频,报告 `reports/2026-08-28_卡3阶段C/toy_lowvol_cross_validation.md`:
+  自研 年化 5.08%/回撤 −30.0% vs RQAlpha 对齐版 4.86%/−30.0%,**Δ年化 −0.22 pp(容差 1.5)通过**,日收益相关 0.9994,
+  跟踪误差 0.61%,133 个调仓日选券完全一致。残差来源:整手取整、涨跌停拒单、退市折现(RQAlpha)vs 无价按 0(自研)。
+- **交叉验证抓到自研引擎一个 bug**:停牌日无收盘的持仓按 0 估值(次日"暴涨"回来),导致卡2 报告的自研净值
+  日收益失真(相关 0.55、回撤 −34.4%)。已按 TDD 修复(`backtest/engine.py` 沿用末次有效价),**卡2 报告里自研的
+  4.41%/−34.4% 作废,以本报告 5.08%/−30.0%(无滑点口径)为准**。
+- **全成本版**(规则表成本 + ST 过滤 + 内置红线):年化 4.29% / 回撤 −31.0% / 夏普 0.35,基准 3.82% / −46.7%;
+  成本影响 −0.57 pp/年。RQAlpha 报表目录 `rq_full_runs/`。
+- 修一处 RQAlpha 报表陷阱:`get_risk_free_rate` 把利率 0 当缺失 → sharpe/alpha NaN;ConstantYieldCurve 0→1e-12。
+- 测试 136→152 全绿。局限:集合竞价不加滑点;科创板 200 股起/步长 1 的整手规则未进策略下单层;上市首日涨跌停近似。

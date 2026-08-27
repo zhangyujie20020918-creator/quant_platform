@@ -59,6 +59,15 @@ instruments:                   # 品种规则表(蓝图原则3):交易规则挂�
       KSH: {since: "2019-07-22", price_limit: 0.20, round_lot: 200}   # 科创板:20%,200股起
       GEM: {since: "2020-08-24", price_limit: 0.20}                   # 创业板:注册制改革后 20%
       BJS: {since: "2020-07-27", price_limit: 0.30}                   # 北交所(含精选层时期):30%
+    costs:                     # 交易成本(全成本红线);印花税/过户费按生效日列表,回测按当日取值
+      commission_rate: 0.0002  # 佣金(双边),万2
+      min_commission: 5.0      # 最低佣金(元/笔)
+      stamp_tax_sell:          # 印花税(卖出单边)
+        - {since: "2008-09-19", rate: 0.001}
+        - {since: "2023-08-28", rate: 0.0005}
+      transfer_fee:            # 过户费(双边)
+        - {since: "2015-08-01", rate: 0.00002}
+        - {since: "2022-04-29", rate: 0.00001}
 
 backtest:
   risk_free_rate: 0.0          # RQAlpha 报表用无风险利率常数(无收益率曲线表;与自研 stats 口径一致取 0)

@@ -86,6 +86,16 @@ def test_missing_price_skips_symbol_no_crash():
     assert "A" in res["positions_end"] and "B" not in res["positions_end"]
 
 
+def test_missing_close_marks_position_at_last_known_price():
+    opens = _panel(DATES, ["A"], [[10]] * 5)
+    closes = _panel(DATES, ["A"], [[10], [11], [np.nan], [12], [12]])   # 01-07 停牌无收盘
+    res = run_backtest(["2026-01-05"], {"2026-01-05": {"A": 1.0}}, opens=opens, closes=closes,
+                       init_cash=10000.0, cost=NOCOST)
+    # 停牌日持仓按末次有效价 11 估值(1000 股 → 11000),而不是按 0 计后次日"暴涨"回来
+    assert res["nav"].loc["2026-01-07"] == pytest.approx(11000.0)
+    assert res["nav"].loc["2026-01-08"] == pytest.approx(12000.0)
+
+
 def test_nav_and_returns_shapes():
     opens = _panel(DATES, ["A"], [[10]] * 5)
     closes = _panel(DATES, ["A"], [[10, 11, 12, 13, 14]][0] and [[10], [11], [12], [13], [14]])

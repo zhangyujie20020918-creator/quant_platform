@@ -1,5 +1,28 @@
 # CHANGELOG
 
+## 2026-08-28 卡3 阶段C · 红线验收 + 玩具策略 RQAlpha 版 + 交叉验证(卡3 收尾,待人类验收)
+
+- **卡3 三条放行判据全部满足**:RQAlpha 在 store 数据上跑通玩具策略并出净值/报告;数据源与红线均有合成 store 测试(不触网、
+  无 bundle);与自研净值交叉验证通过且差异有解释。里程碑"玩具组合出净值与成交明细"可运行:`python -m backtest.run_rqalpha_toy`。
+- **A股股票红线清单落地**(蓝图第七节机制):`instruments/cn_stock_redlines.md` R1-R7 ↔ `tests/test_cn_stock_redlines.py`
+  **7/7 通过**——前复权正确 / 涨停不可买·跌停不可卖 / 停牌拒单(口径书面声明)/ ST 过滤 / 退市股在历史池+退市按末价折现 /
+  T+1 / 全成本。合成 store 加了涨停·跌停日、退市样本、ST 成分。
+- **成本模型**:`backtest/rqalpha_adapter/costs.py` RuleTableStockCostDecider,佣金/最低佣金/印花税(卖出,按生效日)/过户费
+  (双边,按生效日)全查品种规则表,替换 RQAlpha 默认万8/0.05%;mod config `costs` 可覆盖个别键(对齐口径用)。
+- **玩具策略 RQAlpha 版** `strategies/toy_lowvol_rq.py`:与自研共用 `select_low_vol`、同一 universe、同一调仓日历;
+  信号=调仓日收盘 history_bars,执行=次日 `open_auction` 按开盘价先卖后买(`plan_rebalance` 纯函数,整手,预期回款滚动)。
+  RQAlpha 事实:日频只有收盘撮合,T+1 开盘只能走集合竞价且不加滑点;`order_value/order_target_percent` 下单时按当时现金截断。
+- **交叉验证(SOP S4)** 2011-06→2022-06 沪深300 低波20 月频:自研 年化 5.08% / 回撤 −30.0% vs RQAlpha 对齐版
+  4.86% / −30.0%,**Δ年化 −0.22 pp ≤ 容差 1.5**,日收益相关 0.9994,跟踪误差 0.61%,133 个调仓日选券完全一致;
+  残差=整手取整、涨跌停拒单、退市处理差异。报告 `reports/2026-08-28_卡3阶段C/toy_lowvol_cross_validation.md`。
+- **交叉验证抓到自研引擎 bug 并修复**:停牌日无收盘的持仓按 0 估值、次日回弹,致日收益失真(首轮相关仅 0.55)。
+  `backtest/engine.py` 改为沿用末次有效价(TDD)。**卡2 报告中自研 4.41%/−34.4% 作废**,以本报告为准。
+- 全成本版(规则表成本 + ST 过滤):年化 4.29% / 回撤 −31.0% / 夏普 0.35 vs 基准 3.82% / −46.7%;成本影响 −0.57 pp/年。
+- 修 RQAlpha 报表陷阱:`get_risk_free_rate` 把利率 0 当缺失 → sharpe/alpha NaN,ConstantYieldCurve 0→1e-12。
+- **阈值治理记账**:config 新增 `instruments.cn_stock.costs`(commission_rate 0.0002 / min_commission 5 /
+  stamp_tax_sell [2008-09-19 0.001, 2023-08-28 0.0005] / transfer_fee [2015-08-01 0.00002, 2022-04-29 0.00001])。
+- 测试 136→152 全绿。局限:集合竞价不加滑点;科创板 200 股起/步长 1 未进策略下单层;上市首日涨跌停近似;ETF 未接入。
+
 ## 2026-08-27 卡3 阶段B · RQAlpha 数据源铺开(全部数据来自 store,不读 bundle)
 
 - **结论:RQAlpha 6.3.0 跑在我们的 store 上,零 bundle 依赖**(`data_bundle_path` 指向不存在目录照跑)。

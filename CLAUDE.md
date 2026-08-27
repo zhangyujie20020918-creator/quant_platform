@@ -25,3 +25,11 @@
 
 一卡一会话;每卡收尾 = 测试全绿 + 里程碑可运行 + CHANGELOG;跨卡必经人类验收。
 当前看板:`docs/task_cards/README.md`。
+
+## 回测引擎(卡3 起)
+
+- 引擎 = RQAlpha 6.3.0 + 我们的 store 数据源(`backtest/rqalpha_adapter/`,零 bundle);品种规则表 = config
+  `instruments.cn_stock` + `instruments/cn_stock.py`;A股股票红线清单 `instruments/cn_stock_redlines.md` ↔
+  验收测试 `tests/test_cn_stock_redlines.py`。新品种 = 新规则表条目 + 新红线清单 + 新测试,核心零修改。
+- 策略回测走 `run_func(..., mod.store={enabled, lib:"backtest.rqalpha_adapter.mod", preload:[symbols]})`;
+  自研 `backtest/engine.py` 只作交叉验证对照(SOP S4)。

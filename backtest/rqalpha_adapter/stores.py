@@ -342,8 +342,12 @@ class StoreSuspendedDateSet(AbstractDateSet):
 # ---------- 无风险利率(我们没有收益率曲线表,用 config 常数) ----------
 
 class ConstantYieldCurve:
+    """常数利率曲线。RQAlpha DataProxy.get_risk_free_rate 用 `if rate and ...` 判缺失,利率 0 会被当作缺失
+    → 报表 sharpe/alpha 全 NaN;故 0 一律给一个数值上等于 0 的极小正数(EPS),不改变任何指标。"""
+    EPS = 1e-12
+
     def __init__(self, rate):
-        self._rate = float(rate)
+        self._rate = float(rate) if float(rate) != 0.0 else self.EPS
 
     def get_yield_curve(self, start_date, end_date, tenor=None):
         cols = list(YIELD_CURVE_TENORS.values())

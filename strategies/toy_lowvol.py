@@ -27,7 +27,12 @@ def low_vol_weights(rebalance_dates, universe, closes, n_select=20, lookback=20)
             if len(ret) < lookback:
                 continue
             vols[sym] = float(ret.std())
-        picked = sorted(vols, key=vols.get)[:n_select]
-        w = round(1.0 / len(picked), 12) if picked else 0.0
-        out[d] = {sym: w for sym in picked}
+        out[d] = select_low_vol(vols, n_select)
     return out
+
+
+def select_low_vol(vols, n_select):
+    """{symbol: 波动} → 取最低 n 只等权 {symbol: weight}(自研引擎与 RQAlpha 版共用的唯一选券逻辑)。"""
+    picked = sorted(vols, key=vols.get)[:n_select]
+    w = round(1.0 / len(picked), 12) if picked else 0.0
+    return {sym: w for sym in picked}

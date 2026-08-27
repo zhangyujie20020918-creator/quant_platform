@@ -23,7 +23,7 @@ def _ins(ds, obid):
 
 def test_instruments_registered_including_delisted_and_index(ds):
     cs = list(ds.get_instruments(types=[INSTRUMENT_TYPE.CS]))
-    assert len(cs) == 7 and any(i.order_book_id == "000003.XSHE" for i in cs)
+    assert len(cs) == 8 and any(i.order_book_id == "000003.XSHE" for i in cs)
     assert [i.order_book_id for i in ds.get_instruments(types=[INSTRUMENT_TYPE.INDX])] == ["000001.XSHG", "000300.XSHG"]
     assert list(ds.get_instruments(types=[INSTRUMENT_TYPE.ETF])) == []      # 未注册的类型不报错
 
@@ -91,3 +91,14 @@ def test_no_share_transformation(ds):
 def test_preload_accepts_platform_symbols(ds):
     ds.preload(["000001.SZ", "600000.SH"])
     assert ds.get_bar(_ins(ds, "600000.XSHG"), dt.date(2014, 6, 3), "1d")["close"] == 10.0
+
+
+def test_risk_free_rate_zero_is_not_treated_as_missing(tmp_path):
+    # RQAlpha DataProxy.get_risk_free_rate 把利率 0 当缺失(if rate ...)→ NaN → 报表 sharpe/alpha 全 NaN
+    from rqalpha.data.data_proxy import DataProxy
+    root = str(tmp_path)
+    cfg = seed(root)
+    cfg["backtest"]["risk_free_rate"] = 0.0
+    proxy = DataProxy(StoreDataSource(cfg, root=root), None)
+    rate = proxy.get_risk_free_rate(dt.date(2014, 6, 3), dt.date(2014, 6, 20))
+    assert rate == pytest.approx(0.0, abs=1e-9) and not (rate != rate)      # 不是 NaN

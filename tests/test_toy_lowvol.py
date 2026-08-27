@@ -64,3 +64,10 @@ def test_empty_universe_gives_empty_weights():
     uni = _FakeUniverse({})
     w = low_vol_weights([dates[-1]], uni, closes, n_select=5, lookback=20)
     assert w[dates[-1]] == {}
+
+
+def test_select_low_vol_picks_lowest_n_equal_weight():
+    from strategies.toy_lowvol import select_low_vol
+    assert select_low_vol({"a": 0.3, "b": 0.1, "c": 0.2}, 2) == {"b": 0.5, "c": 0.5}
+    assert select_low_vol({"a": 0.3}, 2) == {"a": 1.0}
+    assert select_low_vol({}, 2) == {}

@@ -3,7 +3,7 @@
 import numpy as np
 import pandas as pd
 
-from instruments.cn_stock import board_type, price_limit_ratios, round_lot
+from instruments.cn_stock import board_type, dated_rate, price_limit_ratios, round_lot
 
 RULES = {
     "round_lot": 100, "market_tplus": 1,
@@ -45,3 +45,11 @@ def test_round_lot_board_override():
     assert round_lot("MainBoard", CFG) == 100
     assert round_lot("KSH", CFG) == 200
     assert round_lot("GEM", CFG) == 100
+
+
+def test_dated_rate_picks_latest_effective_entry():
+    entries = [{"since": "2008-09-19", "rate": 0.001}, {"since": "2023-08-28", "rate": 0.0005}]
+    assert dated_rate(entries, pd.Timestamp("2014-06-12")) == 0.001
+    assert dated_rate(entries, pd.Timestamp("2023-08-28")) == 0.0005
+    assert dated_rate(entries, pd.Timestamp("2000-01-01")) == 0.0        # 生效前 → 0
+    assert dated_rate([], pd.Timestamp("2014-06-12")) == 0.0
