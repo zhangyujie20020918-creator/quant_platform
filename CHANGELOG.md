@@ -1,5 +1,56 @@
 # CHANGELOG
 
+## 2026-08-27 卡3 阶段B · RQAlpha 数据源铺开(全部数据来自 store,不读 bundle)
+
+- **结论:RQAlpha 6.3.0 跑在我们的 store 上,零 bundle 依赖**(`data_bundle_path` 指向不存在目录照跑)。
+  生产代码落在 `backtest/rqalpha_adapter/`(取代 research/engine_probe 的 spike):
+  `symbols.py`(.SH/.SZ/.BJ ↔ .XSHG/.XSHE/.BJSE 全流程唯一换算点)、`stores.py`(七个 store:日历←core.calendar 文件模式、
+  instruments←stock_basic 含退市+index_daily 指数、日线 bar←stock_daily/index_daily 原始价、复权←adj_factor、
+  停牌←缺行推导、ST←namechange)、`data_source.py`(StoreDataSource:继承 BaseDataSource 复用查询逻辑但不调其 __init__)、
+  `mod.py`(start_up 注入)。
+- **复权口径(重点对账项,防重复复权)**:bar 存原始价;adj_factor 变动点 → ex_cum_factor(history_bars 前/后复权),
+  变动日比值 → 合成 split(持仓过除权日按比例调股数/成本,市值连续);**分红置空**(已在因子里)。总回报口径 = 自研 hfq。
+  覆盖 `get_ex_cum_factor`:基类按上市日过滤并强插 1.0,我们的因子基准非 1,不覆盖则 2010 前上市股票复权全错。
+- **品种规则表落地**(蓝图原则3):`instruments/cn_stock.py` + config `instruments.cn_stock`,涨跌停幅/板块/整手/T+1 全查表,
+  代码零数字。停牌口径书面声明:交易日 ∧ [首个bar, 数据末日] ∧ 无行(Tushare daily 停牌无行,全表 volume=0 行数为 0)。
+- **真实数据核对 19/19 通过**:`reports/2026-08-27_卡3阶段B/phase_b_store_datasource_check.md`——
+  5889 只 CS(含 339 退市)、日历 4043 日、history_bars pre/post 与自研 qfq/hfq 差 0.00、2014-06-04 成交 11.33 = store 收盘、
+  除权日 10000→12169 股且市值连续、基准净值 = index_daily 累计收益、沪深300 历史全成分 800 只预载 15.5s。
+- **测试 92→136 全绿**(+44:symbols/规则表/stores/datasource/端到端 run_func,合成 store,无 bundle 无网)。
+- 环境:rqalpha 6.3.0 装入主 .venv(其在 py3.11 要求 numpy<2:2.4.6→1.26.4,全套测试无破坏);requirements 记账。
+  `store.read_table` 加 pyarrow 下推过滤(单标的 6s→1.3s,多标的一次读取)+ `store.date_range`(行组统计,不读数据)。
+- **阈值治理记账(新增 config 小节)**:`instruments.cn_stock`(round_lot 100 / market_tplus 1 / price_limit default 0.10、st 0.05 /
+  boards KSH {0.20, 2019-07-22, round_lot 200}、GEM {0.20, 2020-08-24}、BJS {0.30, 2020-07-27})、`backtest.risk_free_rate 0.0`。
+- 阶段C 待办:红线逐条核对(涨跌停/停牌/退市清算 `cash_return_by_stock_delisted`/T+1/全成本含 RQAlpha 要求显式配置的
+  `capital_gain_tax_rate`)、玩具策略 RQAlpha 版、与自研净值交叉验证(SOP S4);上市首日涨跌停特例、ETF 接入列为局限。
+
+## 2026-08-27 卡3 阶段A · Spike 成功(RQAlpha 跑通我们的 store 数据)
+
+- 数据地基全完成:stock_daily 1430万行 + adj_factor 1496万行,均 2010→2026-08-26。
+- 卡3 spike 证伪化解:3个小文件让 RQAlpha 引擎读我们的 stock_daily(register_day_bar_store 替换 +
+  mod 注入数据源)。铁证:RQAlpha 以 15.93 买入 000001 = 我们 store 当日收盘。接入成本远低于
+  "21~31方法"最坏估计。阶段B 待补:ex_factor/日历/instruments/停牌/ST/成分也换我们的。
+
+## 2026-08-27 卡2 裁决:RQAlpha 引擎 + 我们的 store 数据
+
+- 人类裁决(平台方原建议自研):**卡3 引擎走 RQAlpha,但喂我们校验过的 store 数据**
+  (写自定义 AbstractDataSource / bundle 转换),不放弃数据主权与单一真相源。
+- 后果:卡3 = RQAlpha 接我们 store 的适配层 + 红线核对(用 RQAlpha 内置规则但数据是我们的);
+  RQAlpha 的 ricequant bundle 仅作离线参照,不作生产数据源。
+
+## 2026-08-27 卡2 · 引擎调研(报告完成,待人类裁决)
+
+- 全量回补(除 adj_factor 收尾外)完成:stock_daily 1430万行 2010→2026 零失败(修复后的引擎
+  经真实全量验证);adj_factor 补到 2022-09(断网暂停,可续)。
+- 自研侧收官件:backtest/run_toy_backtest.py(universe+复权价+低波策略+引擎串联)。
+  真实数据实测(2011-2022 沪深300低波20月频):策略年化4.41%/回撤-34.4%/夏普0.29 vs
+  基准3.82%/-46.7%/0.28,符合低波经典特征,证明自研引擎产出可信。
+- RQAlpha 6.3.0 探针评测:装于独立 venv(pandas2.3.3兼容),官方bundle 3.3G下载即用,
+  buy_and_hold端到端跑通(约30指标报告)。核心发现:RQAlpha死绑其bundle格式,喂我们的store
+  需转格式(会漂移)或写21~31方法数据源;符号.XSHG口径不同。
+- 对比报告 reports/2026-08-27_引擎调研/engine_comparison.md;**建议自研轻量**(数据主权+可审计
+  优先,RQAlpha留作卡3交叉验证参照)。→ 待人类裁决。
+
 ## 2026-08-26 数据源:官方 Tushare token 接入(代理弃用)
 
 - 咸鱼代理(jiaoch.site)证实不可靠:新代理 token 首调成功后约 20~30 次即全接口"接口用法错误"
@@ -9,7 +60,6 @@
   **退市体检 passed=True(339 只退市股)**——幸存者偏差防线通过,数据地基立住。
 - rate_sleep_sec 0.2→0.35(≈170次/分钟,稳在官方 200/min 档下)。
 - ETF(fund_daily)/指数(index_daily)口径不敏感,继续走 AKShare 免费省 Tushare 配额。
-
 
 ## 2026-08-26 卡1 · 数据层(代码完成,全量回补阻塞于 Tushare token 续期)
 
@@ -28,7 +78,6 @@
 - 发现并修复:AKShare 源缺瞬断重试(其端点会间歇断连),TDD 补测后加 `_call` 重试包装。
 - ⛔ **阻塞**:退市股/adj_factor/namechange/index_weight 四类口径敏感表 AKShare 无法替代,
   全量回补与示踪弹(卡7)需人类续 Tushare token 后方可跑真实数据。基础设施已就绪、可断点续传。
-
 
 ## 2026-08-26 卡0 · 仓库奠基(2026-08-24 放行开工,08-26 收尾)
 
@@ -52,30 +101,3 @@
   同步、日历可查(当前周内近似兜底,已标注)、outputs落盘;记录在
   reports/2026-08-26_卡0奠基/smoke.md。19个测试全绿(config/calendar/outputs/check_secrets)。
 - GitHub私有仓:本机无 gh CLI,建仓待人类二选一(装gh授权 / 网页建私有仓给URL)。
-
-## 2026-08-27 卡2 · 引擎调研(报告完成,待人类裁决)
-
-- 全量回补(除 adj_factor 收尾外)完成:stock_daily 1430万行 2010→2026 零失败(修复后的引擎
-  经真实全量验证);adj_factor 补到 2022-09(断网暂停,可续)。
-- 自研侧收官件:backtest/run_toy_backtest.py(universe+复权价+低波策略+引擎串联)。
-  真实数据实测(2011-2022 沪深300低波20月频):策略年化4.41%/回撤-34.4%/夏普0.29 vs
-  基准3.82%/-46.7%/0.28,符合低波经典特征,证明自研引擎产出可信。
-- RQAlpha 6.3.0 探针评测:装于独立 venv(pandas2.3.3兼容),官方bundle 3.3G下载即用,
-  buy_and_hold端到端跑通(约30指标报告)。核心发现:RQAlpha死绑其bundle格式,喂我们的store
-  需转格式(会漂移)或写21~31方法数据源;符号.XSHG口径不同。
-- 对比报告 reports/2026-08-27_引擎调研/engine_comparison.md;**建议自研轻量**(数据主权+可审计
-  优先,RQAlpha留作卡3交叉验证参照)。→ 待人类裁决。
-
-## 2026-08-27 卡2 裁决:RQAlpha 引擎 + 我们的 store 数据
-
-- 人类裁决(平台方原建议自研):**卡3 引擎走 RQAlpha,但喂我们校验过的 store 数据**
-  (写自定义 AbstractDataSource / bundle 转换),不放弃数据主权与单一真相源。
-- 后果:卡3 = RQAlpha 接我们 store 的适配层 + 红线核对(用 RQAlpha 内置规则但数据是我们的);
-  RQAlpha 的 ricequant bundle 仅作离线参照,不作生产数据源。
-
-## 2026-08-27 卡3 阶段A · Spike 成功(RQAlpha 跑通我们的 store 数据)
-
-- 数据地基全完成:stock_daily 1430万行 + adj_factor 1496万行,均 2010→2026-08-26。
-- 卡3 spike 证伪化解:3个小文件让 RQAlpha 引擎读我们的 stock_daily(register_day_bar_store 替换 +
-  mod 注入数据源)。铁证:RQAlpha 以 15.93 买入 000001 = 我们 store 当日收盘。接入成本远低于
-  "21~31方法"最坏估计。阶段B 待补:ex_factor/日历/instruments/停牌/ST/成分也换我们的。

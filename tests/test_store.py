@@ -99,3 +99,23 @@ def test_static_table_status_has_no_dates(tmp_path):
     store.consolidate("stock_basic", root=root)
     st = store.table_status("stock_basic", root=root)
     assert st["rows"] == 1 and st["date_min"] is None
+
+
+def test_date_range_from_parquet_metadata(tmp_path):
+    root = str(tmp_path)
+    store.write_part("stock_daily", "tushare", "a",
+                     _rows(["20260105", "20260107"], "600000.SH", 1.0, "tushare"), root=root)
+    store.write_part("stock_daily", "tushare", "b",
+                     _rows(["20260106"], "000001.SZ", 2.0, "tushare"), root=root)
+    store.consolidate("stock_daily", root=root)
+    assert store.date_range("stock_daily", root=root) == (pd.Timestamp("2026-01-05"), pd.Timestamp("2026-01-07"))
+    assert store.date_range("adj_factor", root=root) == (None, None)        # 表不存在
+
+
+def test_read_table_symbols_filter_ignored_for_tables_without_symbol_column(tmp_path):
+    root = str(tmp_path)
+    cal = pd.DataFrame({"date": ["20260105", "20260106"], "exchange": "SSE", "is_open": [True, False]})
+    store.write_part("trade_cal", "tushare", "2026", cal, root=root)
+    store.consolidate("trade_cal", root=root)
+    df = store.read_table("trade_cal", symbols=["600000.SH"], start="2026-01-06", root=root)
+    assert len(df) == 1 and df["date"].iloc[0] == pd.Timestamp("2026-01-06")

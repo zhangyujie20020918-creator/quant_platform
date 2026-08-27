@@ -71,3 +71,21 @@ RQAlpha 数据源需要喂的东西 ← 我们 store 的对应表:
   阶段B 要把这些也换成我们的(adj_factor→ex_factor_store,stock_basic→instruments 含退市,
   trade_cal→calendar,namechange→ST,index_weight→成分),并解决 .SH↔.XSHG 全流程映射。
 - **裁决止损点未触发**:接口深度可控,继续阶段B。
+
+### 阶段B · 数据源铺开完成(2026-08-27)
+**结论:RQAlpha 全部数据来自我们的 store,不再读任何 bundle 文件(`data_bundle_path` 指向不存在目录照跑)。**
+- 生产代码 `backtest/rqalpha_adapter/`(取代 spike):`symbols.py`(符号唯一换算点,含 .BJ↔.BJSE)、`stores.py`
+  (七个 store,对应本卡第二节表格逐项落地)、`data_source.py`(StoreDataSource:继承 BaseDataSource 复用 history_bars/
+  instruments 查询逻辑,但不调其 __init__——那里硬编码打开 14 个 bundle 文件)、`mod.py`(start_up 注入,mod config 可传
+  root/config_path/preload)。品种规则表 `instruments/cn_stock.py` + config `instruments.cn_stock`:涨跌停幅(主板/ST/
+  科创/创业/北交所含生效日)、整手(科创 200)、T+1 全查表,代码零数字。
+- **复权对账(本卡头号风险项)**:bar 存原始价;adj_factor 变动点 → ex_cum_factor(前/后复权看历史),变动日比值 →
+  合成 split(持仓过除权日),分红置空。实测 history_bars pre/post 与自研 `backtest.prices` qfq/hfq 差 0.00;
+  端到端 2014-06-12 除权:10000 股 → 12169 股,市值比 1.00306 ≈ 9.71/9.68。覆盖 `get_ex_cum_factor`(基类强插 1.0 陷阱)。
+- 停牌口径:交易日 ∧ [首个 bar, 数据末日] ∧ 无行(实测 000001 2014-07-15 真实停牌 → True)。ST:namechange 名称
+  `^S?\*?ST` 区间(实测 000005 2021-05-06 起 True)。日历:core.calendar 文件模式,拒绝周内近似。
+- 真实数据核对 19/19 通过:`reports/2026-08-27_卡3阶段B/phase_b_store_datasource_check.md`;运行器
+  `python -m backtest.run_rqalpha_check`。沪深300 历史全成分 800 只预载 15.5s(store.read_table 加 pyarrow 下推过滤)。
+- 测试 92→136 全绿(合成 store `tests/rq_seed.py`,无 bundle 无网)。环境:rqalpha 6.3.0 入主 .venv(numpy 降 1.26.4)。
+- **阶段C 待办**:红线逐条核对(涨跌停/停牌/退市清算/T+1/全成本——RQAlpha 提示 `base.capital_gain_tax_rate` 需显式配置)、
+  玩具策略 RQAlpha 版、与自研净值交叉验证。局限:上市首日涨跌停以 NaN(无限制)近似;ETF/基金未接入 instruments。

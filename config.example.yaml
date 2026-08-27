@@ -47,3 +47,18 @@ quality:                       # S1 体检四项判据(可改默认值;批前声
   max_snapshot_gap_days: 45    # ②index_weight 相邻快照最大间隔(月度快照应≤45天)
   max_dirty_ratio: 0.001       # ③脏值行占比上限
   min_daily_coverage: 0.95     # ④每交易日在册股票的日线覆盖率下限
+
+instruments:                   # 品种规则表(蓝图原则3):交易规则挂在品种元数据上,引擎查表执行,代码零硬编码
+  cn_stock:                    # A股股票品种包
+    round_lot: 100             # 最小下单股数(整手)
+    market_tplus: 1            # T+1
+    price_limit:
+      default: 0.10            # 主板普通股涨跌停幅度
+      st: 0.05                 # 主板 ST/*ST
+    boards:                    # 板块自 since 起用统一幅度(该板块 ST 亦同幅度;since 之前按主板规则)
+      KSH: {since: "2019-07-22", price_limit: 0.20, round_lot: 200}   # 科创板:20%,200股起
+      GEM: {since: "2020-08-24", price_limit: 0.20}                   # 创业板:注册制改革后 20%
+      BJS: {since: "2020-07-27", price_limit: 0.30}                   # 北交所(含精选层时期):30%
+
+backtest:
+  risk_free_rate: 0.0          # RQAlpha 报表用无风险利率常数(无收益率曲线表;与自研 stats 口径一致取 0)

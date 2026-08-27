@@ -11,6 +11,7 @@ import glob
 import os
 
 import pandas as pd
+import pyarrow.parquet as pq
 
 from core.config import ROOT, get
 from data.schema import get_spec, validate
@@ -103,6 +104,20 @@ def consolidate(name, source_priority=None, cfg=None, root=None):
     return df
 
 
+def _pushdown_filters(spec, start, end, symbols):
+    """把区间/标的条件下推到 parquet 读取(pyarrow 在 C++ 层过滤,不整表进 pandas)。
+    只对 spec 里真有的列生成条件;下推后 pandas 侧再过一遍作为语义兜底。"""
+    filters = []
+    if spec.date_col:
+        if start is not None:
+            filters.append((spec.date_col, ">=", pd.Timestamp(start)))
+        if end is not None:
+            filters.append((spec.date_col, "<=", pd.Timestamp(end)))
+    if symbols is not None and "symbol" in spec.columns:
+        filters.append(("symbol", "in", list(symbols)))
+    return filters or None
+
+
 def read_table(name, start=None, end=None, symbols=None, columns=None, cfg=None, root=None):
     """读合并表并按日期区间/标的/列裁剪;表不存在返回带 spec 列的空表(不返回 None)。"""
     spec = get_spec(name)
@@ -110,7 +125,7 @@ def read_table(name, start=None, end=None, symbols=None, columns=None, cfg=None,
     if not os.path.exists(path):
         df = _empty_frame(spec)
     else:
-        df = pd.read_parquet(path)
+        df = pd.read_parquet(path, filters=_pushdown_filters(spec, start, end, symbols))
     if spec.date_col and len(df):
         if start is not None:
             df = df[df[spec.date_col] >= pd.Timestamp(start)]
@@ -121,6 +136,26 @@ def read_table(name, start=None, end=None, symbols=None, columns=None, cfg=None,
     if columns is not None:
         df = df[list(columns)]
     return df.reset_index(drop=True)
+
+
+def date_range(name, cfg=None, root=None):
+    """合并表日期列的 (min, max),只读 parquet 行组统计不读数据;表不存在或无日期列返回 (None, None)。"""
+    spec = get_spec(name)
+    path = table_path(name, cfg, root)
+    if not spec.date_col or not os.path.exists(path):
+        return None, None
+    meta = pq.ParquetFile(path).metadata
+    col_idx = meta.schema.names.index(spec.date_col)
+    lo, hi = None, None
+    for i in range(meta.num_row_groups):
+        st = meta.row_group(i).column(col_idx).statistics
+        if st is None or not st.has_min_max:
+            continue
+        lo = st.min if lo is None else min(lo, st.min)
+        hi = st.max if hi is None else max(hi, st.max)
+    if lo is None:
+        return None, None
+    return pd.Timestamp(lo), pd.Timestamp(hi)
 
 
 def table_status(name, cfg=None, root=None):

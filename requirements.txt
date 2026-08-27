@@ -1,3 +1,6 @@
 pandas==2.2.3
 PyYAML==6.0.2
 pytest==8.3.4
+numpy<2                 # rqalpha 6.3.0 在 py3.11 下要求 numpy<2
+rqalpha==6.3.0          # 卡2 裁决:生产回测引擎(数据源换成我们的 store,不用 bundle)
+pyarrow>=17             # parquet 读写与下推过滤
