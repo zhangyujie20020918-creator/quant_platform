@@ -52,3 +52,16 @@
   同步、日历可查(当前周内近似兜底,已标注)、outputs落盘;记录在
   reports/2026-08-26_卡0奠基/smoke.md。19个测试全绿(config/calendar/outputs/check_secrets)。
 - GitHub私有仓:本机无 gh CLI,建仓待人类二选一(装gh授权 / 网页建私有仓给URL)。
+
+## 2026-08-27 卡2 · 引擎调研(报告完成,待人类裁决)
+
+- 全量回补(除 adj_factor 收尾外)完成:stock_daily 1430万行 2010→2026 零失败(修复后的引擎
+  经真实全量验证);adj_factor 补到 2022-09(断网暂停,可续)。
+- 自研侧收官件:backtest/run_toy_backtest.py(universe+复权价+低波策略+引擎串联)。
+  真实数据实测(2011-2022 沪深300低波20月频):策略年化4.41%/回撤-34.4%/夏普0.29 vs
+  基准3.82%/-46.7%/0.28,符合低波经典特征,证明自研引擎产出可信。
+- RQAlpha 6.3.0 探针评测:装于独立 venv(pandas2.3.3兼容),官方bundle 3.3G下载即用,
+  buy_and_hold端到端跑通(约30指标报告)。核心发现:RQAlpha死绑其bundle格式,喂我们的store
+  需转格式(会漂移)或写21~31方法数据源;符号.XSHG口径不同。
+- 对比报告 reports/2026-08-27_引擎调研/engine_comparison.md;**建议自研轻量**(数据主权+可审计
+  优先,RQAlpha留作卡3交叉验证参照)。→ 待人类裁决。
