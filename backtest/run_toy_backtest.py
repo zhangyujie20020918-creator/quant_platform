@@ -35,7 +35,7 @@ def _stats(nav, periods_per_year=252):
 
 
 def run(start, end, index="000300.SH", n_select=20, lookback=20, init_cash=1_000_000.0,
-        commission=0.0002, slippage=0.0005, cfg=None, root=None):
+        commission=0.0002, slippage=0.0005, cfg=None, root=None, topic="引擎调研"):
     cfg = cfg or load_config()
     log = init("toy_backtest")
     cal = TradingCalendar.load(cfg, root=root)
@@ -74,7 +74,7 @@ def run(start, end, index="000300.SH", n_select=20, lookback=20, init_cash=1_000
     strat_stats, bench_stats = _stats(nav), _stats(bench_nav)
     excess = strat_stats["cagr"] - bench_stats["cagr"]
 
-    out_dir = report_dir("引擎调研", cfg=cfg, root=root)
+    out_dir = report_dir(topic, cfg=cfg, root=root)          # 产出主题由调用方定(交叉验证时归入阶段C目录)
     nav_df = pd.DataFrame({"date": nav.index, "strategy_nav": nav.values, "benchmark_nav": bench_nav.values})
     nav_df.to_csv(os.path.join(out_dir, "self_built_nav.csv"), index=False, encoding="utf-8-sig")
     res["trades"].to_csv(os.path.join(out_dir, "self_built_trades.csv"), index=False, encoding="utf-8-sig")

@@ -82,7 +82,7 @@ def main():
     # ① 自研引擎(对齐口径:同佣金、无滑点——RQAlpha 集合竞价撮合不加滑点)
     log.info("① 自研引擎重跑(对齐口径)...")
     sb = run_self_built(args.start, args.end, index=args.index, n_select=args.n, lookback=args.lookback,
-                        init_cash=init_cash, commission=args.commission, slippage=0.0, cfg=cfg)
+                        init_cash=init_cash, commission=args.commission, slippage=0.0, cfg=cfg, topic=TOPIC)
     sb_nav = sb["nav"]
 
     # ② RQAlpha 对齐版
