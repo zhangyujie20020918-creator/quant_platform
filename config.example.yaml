@@ -41,6 +41,15 @@ protocol:                      # 防挖矿协议阈值(全部为可改默认值;
   positive_control_tolerance: 0.4   # 阳性对照:已知因子复现容差(±)
   redundancy_corr_max: 0.6     # 与active因子的冗余相关阈值
   cross_engine_tolerance_pct: 1.5   # S4交叉验证:独立引擎复现偏差容差(百分点)
+  # ---- 因子检验管线(卡4;批前声明即本节当前值) ----
+  signal_freq: monthly_first         # 因子信号日频率(core.calendar 调仓频率;月频 × holding_days=20 非重叠)
+  holding_days: 20                   # 前瞻收益持有期(交易日):open[T+1+H]/open[T+1]−1
+  n_quantiles: 5                     # 分组检验组数
+  in_sample: ["2011-01-01", "2020-12-31"]      # 样本内(信号日区间)
+  out_of_sample: ["2021-01-01", "2026-06-30"]  # 样本外:每因子只评估一次
+  min_periods_ratio: 0.6             # rolling 最少有效样本比例(不足记 NaN)
+  negative_control_seed: 20260828    # 阴性对照随机因子种子
+  alphalens_periods: [1, 5, 20]      # tear sheet 前瞻期(交易日)
 
 quality:                       # S1 体检四项判据(可改默认值;批前声明)
   min_delisted_count: 100      # ①stock_basic 中退市股至少这么多,否则视为幸存者偏差样本

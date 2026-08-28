@@ -33,3 +33,11 @@
   验收测试 `tests/test_cn_stock_redlines.py`。新品种 = 新规则表条目 + 新红线清单 + 新测试,核心零修改。
 - 策略回测走 `run_func(..., mod.store={enabled, lib:"backtest.rqalpha_adapter.mod", preload:[symbols]})`;
   自研 `backtest/engine.py` 只作交叉验证对照(SOP S4)。
+
+## 因子平台(卡4 起)
+
+- 注册表 `factors/registry.yaml`(五要素必填,状态机,rejected/tested_weak 永不删除)是唯一权威;实现在
+  `factors/lib/<id>.py`(`compute(ctx)`);检验只走 `python -m factors.run_factor_tests`(批前声明先于数字,
+  样本外每因子只评估一次,对照组失败本批作废,阈值全在 config.protocol)。
+- 前瞻收益唯一入口 `factors/forward_returns.py`(open[T+1+H]/open[T+1]−1);alphalens 只能经
+  `factors/alphalens_wrapper.py` 调用(价格入口锁 T+1 开盘),裸调用视为违规。

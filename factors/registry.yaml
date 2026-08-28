@@ -1,0 +1,70 @@
+# 因子注册表(唯一权威登记表;代码只读,检验管线只写回裁决类字段)。
+# 五要素必填:id / formula / direction / hypothesis / category(讲不出为什么赚钱的不收)。
+# 状态机:candidate → tested → active | tested_weak | rejected;rejected / tested_weak 永不删除(防重复发明)。
+# role:candidate | positive_control(已知因子,每批复现)| negative_control(随机因子,必判非 active)。
+# 首批(卡4,2026-08-28)仅为验证管道,不含研究观点;universe = 沪深300 PIT 成分。
+
+- id: vol_20
+  name: 20日波动率
+  category: volatility
+  direction: lower_better
+  formula: std(log(close_t/close_{t-1}), 20),min_periods=ceil(20×0.6)
+  data_deps:
+  - stock_daily.close
+  - adj_factor
+  lookback: 20
+  hypothesis: 低波异象:低波动股票风险调整后收益更高(杠杆约束/彩票偏好);方向由样本内 IC 判定;方向由样本内IC判定于2026-08-28(IC_is=-0.0435)
+  status: tested_weak
+  role: candidate
+  test_report: reports/2026-08-28_卡4因子检验/factor_verdict.md
+  data_version: '2026-08-26'
+  oos_evaluated: '2026-08-28'
+  redundant_with: []
+- id: mom_120_20
+  name: 中期动量(跳过近1月)
+  category: momentum
+  direction: higher_better
+  formula: close_{t-20} / close_{t-120} − 1
+  data_deps:
+  - stock_daily.close
+  - adj_factor
+  lookback: 120
+  hypothesis: 12-1 动量:中期趋势延续,跳过最近一月避开短期反转
+  status: rejected
+  role: candidate
+  test_report: reports/2026-08-28_卡4因子检验/factor_verdict.md
+  data_version: '2026-08-26'
+  oos_evaluated: '2026-08-28'
+  redundant_with: []
+- id: rev_20
+  name: 20日反转(阳性对照)
+  category: momentum
+  direction: lower_better
+  formula: close_t / close_{t-20} − 1
+  data_deps:
+  - stock_daily.close
+  - adj_factor
+  lookback: 20
+  hypothesis: A股短期反转:过去一月涨幅高者未来一月跑输(过度反应);已知最稳健异象之一,作阳性对照
+  status: tested_weak
+  role: positive_control
+  control_reference: -0.03978285396956936
+  test_report: reports/2026-08-28_卡4因子检验/factor_verdict.md
+  data_version: '2026-08-26'
+  oos_evaluated: '2026-08-28'
+  redundant_with: []
+- id: random_control
+  name: 随机因子(阴性对照)
+  category: control
+  direction: to_be_tested
+  formula: standard_normal(seed=protocol.negative_control_seed),有价才有值
+  data_deps:
+  - stock_daily.close
+  lookback: 0
+  hypothesis: 无任何信息;若被判 active 即管线/数据有未来函数或泄漏,本批作废
+  status: rejected
+  role: negative_control
+  test_report: reports/2026-08-28_卡4因子检验/factor_verdict.md
+  data_version: '2026-08-26'
+  oos_evaluated: '2026-08-28'
+  redundant_with: []

@@ -1,6 +1,33 @@
 # CHANGELOG
 
-## 2026-08-28 卡3 阶段C · 红线验收 + 玩具策略 RQAlpha 版 + 交叉验证(卡3 收尾,待人类验收)
+## 2026-08-28 卡4 · 因子平台(注册表 + 防挖矿管线 + alphalens/quantstats,待人类验收)
+
+- **里程碑达成:真实数据出完整 tear sheet**(vol_20 / mom_120_20 / rev_20 各一份,alphalens 全套图 + IC/分组 CSV),
+  报告 `reports/2026-08-28_卡4因子检验/factor_verdict.md`;入口 `python -m factors.run_factor_tests`(约 8 分钟)。
+- **注册表** `factors/registry.yaml` + `factors/registry.py`:五要素必填(id/formula/direction/hypothesis/category),
+  状态机 candidate→tested→active|tested_weak|rejected(永不删除),role=candidate/positive_control/negative_control;
+  管线只能写回裁决类字段(status/direction/test_report/data_version/oos_evaluated/redundant_with/control_reference),
+  公式等定义字段程序不可改;写回保留文件头注释。
+- **防挖矿协议平移为可测试机制**(`factors/pipeline.py` + `verdict.py`,阈值全在 config.protocol):批前声明先写进报告再算数
+  (阈值/切分/候选数);样本内外切分(2011~2020 / 2021~2026-06);IC/ICIR/t 检验/5 分组单调/top 组换手;BH 校正;
+  **样本外每因子只评估一次**(oos_evaluated 非空即跳过并沿用终审);阳性对照(rev_20 反转)首批建基线、其后须复现到容差内,
+  阴性对照(种子随机因子)判 active 即本批作废且不写回;to_be_tested 方向由样本内 IC 判定并写回、hypothesis 追加判定日期;
+  冗余标注(与 active 因子秩相关 > redundancy_corr_max)。active 不设上限(SOP v2)。
+- **T+1 锁死**:`factors/forward_returns.py`(open[T+1+H]/open[T+1]−1)是前瞻收益唯一入口;`factors/alphalens_wrapper.py`
+  在入口把价格面板换成 open.shift(−1) 再交 alphalens,裸调用视为违规;`backtest/quantstats_report.py` 净值→html。
+- **首批裁决(沪深300 PIT,月频信号 × 20 日持有,样本内 120 截面)**:vol_20 IC_is −0.044 / ICIR −0.20 / 单调 0.70 /
+  IC_oos −0.079 → tested_weak(有信号,ICIR 与单调性未达标;方向判为 lower_better);mom_120_20 IC_is 0.014 → rejected;
+  rev_20(阳性)IC_is −0.040 方向正确、基线建立,样本外 IC 0.006 → tested_weak;random_control IC_is 0.003 → rejected(阴性通过)。
+  结论只对大盘股 universe 有效,不含研究观点。
+- 施工记录:首轮试跑 tear sheet 因 alphalens 要求因子日期与交易日历同频而失败(月频信号日不满足),改为喂全日频 PIT 面板
+  (正式裁决仍以月频非重叠统计为准);注册表恢复至检验前状态后正式重跑,数字与试跑完全一致,无任何调参。
+- 阈值治理记账:config.protocol 新增 signal_freq monthly_first / holding_days 20 / n_quantiles 5 / in_sample
+  [2011-01-01,2020-12-31] / out_of_sample [2021-01-01,2026-06-30] / min_periods_ratio 0.6 / negative_control_seed 20260828 /
+  alphalens_periods [1,5,20]。依赖新增 alphalens-reloaded 0.4.6、quantstats 0.0.81。测试 152→194 全绿。
+
+## 2026-08-28 卡3 阶段C · 红线验收 + 玩具策略 RQAlpha 版 + 交叉验证(卡3 收尾)
+
+- **人类验收:2026-08-28 放行(用户"继续"),开卡4 因子平台。**
 
 - **卡3 三条放行判据全部满足**:RQAlpha 在 store 数据上跑通玩具策略并出净值/报告;数据源与红线均有合成 store 测试(不触网、
   无 bundle);与自研净值交叉验证通过且差异有解释。里程碑"玩具组合出净值与成交明细"可运行:`python -m backtest.run_rqalpha_toy`。
