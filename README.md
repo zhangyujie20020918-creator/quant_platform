@@ -6,6 +6,6 @@ A 股多品种量化研究流水线:想法登记 → 数据 → 因子检验(防
 - 新人从这里开始:[`docs/使用指南.md`](docs/使用指南.md)
 - 流程宪法 `SOP.md`;架构宪法 `docs/平台蓝图_v2.md`;建设看板 `docs/task_cards/README.md`;时间线 `CHANGELOG.md`
 - 一条命令自检:`python -m tools.tracer`(玩具策略全流程,约 9 分钟)
-- 面板:`streamlit run dashboard/app.py`
+- 面板:在项目根目录 `.venv\Scripts\python -m streamlit run dashboard\app.py` → http://localhost:8501
 
 自带的玩具策略(沪深300 低波 20 只月调)只用于验证管道,不构成任何投资建议。
