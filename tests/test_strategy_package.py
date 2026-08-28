@@ -158,3 +158,17 @@ def test_apply_param_overrides_returns_new_config_without_touching_package(tmp_p
     assert pkg.config["params"]["w_bond"] == 0.6                                   # 原包不动
     with pytest.raises(PackageError):
         apply_overrides(pkg.config, {"params.not_exist": 1})                      # 不存在的键拒绝(防拼错静默)
+
+
+def test_retired_status_allowed_and_signal_refused(tmp_path):
+    from signals.run_signal import RetiredStrategy, generate
+    from tests.rq_seed import seed
+    cfg_dict = dict(GOOD, status="retired", retired_reason="证伪:年化 ≤ 基准")
+    root = _pkg(tmp_path, cfg_dict)
+    assert load_package("fixed_mix", root=root).config["status"] == "retired"
+    world = str(tmp_path / "world")
+    cfg = seed(world)
+    with pytest.raises(RetiredStrategy):
+        generate("fixed_mix", cfg, root=world, packages_root=root)
+    with pytest.raises(PackageError):
+        load_package("fixed_mix", root=_pkg(tmp_path, dict(GOOD, status="retired")))     # 废弃必须写理由

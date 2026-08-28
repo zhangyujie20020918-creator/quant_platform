@@ -17,7 +17,7 @@ from strategies.base import Strategy
 REQUIRED = ("id", "name", "type", "universe", "params", "benchmark", "risk", "crash_definition")
 EXEC_MODES = ("next_open", "next_close")     # 信号日收盘算 → 次日开盘(集合竞价,无滑点)/ 次日收盘(滑点生效)
 TYPES = ("cross_sectional", "time_series")
-STATUSES = ("toy", "research", "approved")
+STATUSES = ("toy", "research", "approved", "retired")     # retired = 废弃/退役:研究记录永久保留,禁止出信号
 
 
 class PackageError(ValueError):
@@ -51,6 +51,8 @@ def _validate(strategy_id, cfg):
         raise PackageError("策略包 %s status 非法: %r(应为 %s)" % (strategy_id, status, "/".join(STATUSES)))
     if status == "approved" and not cfg.get("approved_by"):
         raise PackageError("策略包 %s status=approved 但无 approved_by(人类签字)" % strategy_id)
+    if status == "retired" and not cfg.get("retired_reason"):
+        raise PackageError("策略包 %s status=retired 必须写 retired_reason(证伪/退役理由永久留档)" % strategy_id)
     cfg["status"] = status
     ex = dict(cfg.get("execution") or {})
     ex.setdefault("mode", "next_open")

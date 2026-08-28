@@ -30,6 +30,10 @@ class FreshnessError(RuntimeError):
     pass
 
 
+class RetiredStrategy(RuntimeError):
+    pass
+
+
 def data_lag_days(cal, data_asof, asof):
     """数据末日之后、asof(含)之前的交易日数;asof ≤ data_asof → 0。"""
     data_asof, asof = pd.Timestamp(data_asof), pd.Timestamp(asof)
@@ -60,6 +64,8 @@ def generate(strategy_id, cfg, root=None, asof=None, packages_root=None, today=N
     root = root or ROOT
     today = pd.Timestamp(today or dt.date.today())
     pkg = load_package(strategy_id, root=packages_root)
+    if pkg.config["status"] == "retired":
+        raise RetiredStrategy("策略 %s 已废弃(%s),禁止出信号" % (strategy_id, pkg.config.get("retired_reason")))
     strategy = build_strategy(pkg)
     cal = TradingCalendar.load(cfg, root=root)
     if cal.source != "file":
