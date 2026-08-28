@@ -49,3 +49,9 @@
   回测(RQAlphaContext)与出信号(StoreContext)共用同一份代码;调仓日只走 core.calendar;风控经 `strategies/risk.py`。
 - 出信号只走 `python -m signals.run_signal --strategy <id>`:数据落后超过新鲜度红线即拒绝;文件契约见
   `signals/schema.py`(完整目标组合,未列出即 0)。status≠approved 的策略信号不得用于交易。
+
+## 研发面板(卡6 起)
+
+- `streamlit run dashboard/app.py`:只读 reports/(原则7),四屏回测浏览器 / 因子 tear sheet / 信号 / 报告;
+  解析逻辑在 `dashboard/catalog.py`(目录扫描)与 `dashboard/loaders.py`(RQAlpha 报表、navs、md 表),app.py 只渲染。
+  面板永不写文件(测试断言)。净值指标单一口径 `backtest/metrics.py::nav_stats`。

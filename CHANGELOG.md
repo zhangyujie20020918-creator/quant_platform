@@ -1,6 +1,22 @@
 # CHANGELOG
 
-## 2026-08-28 卡5 · 策略与信号(两原型基类 + 策略包 + orders CSV 契约,待人类验收)
+## 2026-08-28 卡6 · 研发面板(Streamlit,只读 reports,待人类验收)
+
+- **里程碑达成:浏览器里看到卡3~5 的产出**。`streamlit run dashboard/app.py` 四屏:回测浏览器(净值对比 `*_navs.csv`
+  归一化曲线 + 回撤 + 指标表;RQAlpha 报表 summary / 净值 vs 基准 / 期末持仓 / 成交明细)、因子 tear sheet(裁决总表解析自
+  factor_verdict.md + 完整报告 + tear sheet 图与 IC/分组 CSV)、信号(orders_*.csv + signal_log.md)、报告(所有 md)。
+- **只读**(原则7):解析逻辑全部在纯 python `dashboard/catalog.py`(扫描 `reports/{日期}_{主题}/`:`*_runs/` RQAlpha 报表、
+  `*_navs.csv`、`factor_verdict.md`+`tear_<id>_runs/`、`信号_<策略>/orders_*.csv`)与 `dashboard/loaders.py`(utf-8-sig CSV、
+  summary.xlsx 两列表、md 表格解析、回撤);app.py 只渲染。测试断言扫描/加载/四屏切换后文件集合不变。
+- 无头冒烟:`streamlit.testing.v1.AppTest` 在合成 reports 树(测试)与真实 reports(`reports/2026-08-28_卡6面板/smoke.md`)
+  上四屏无异常;真实扫描到回测 run 3、净值文件 1、因子批次 1(3 份 tear sheet)、信号集 1、md 报告 8。
+- 净值指标口径抽成 `backtest/metrics.py::nav_stats`(run_toy_backtest / run_rqalpha_toy / 面板共用)。
+- 依赖新增 streamlit 1.62.0;测试 220→230 全绿。局限:图表用 Streamlit 内置 line_chart(无交互标注);AppTest 不计数图表/图片
+  元素,图形效果需人类目视验收;面板不做任何计算,数据只能是 reports 里已落盘的产出。
+
+## 2026-08-28 卡5 · 策略与信号(两原型基类 + 策略包 + orders CSV 契约)
+
+- **人类验收:2026-08-28 放行(用户"继续"),开卡6 研发面板。**
 
 - **里程碑达成:玩具策略出合规信号文件** `reports/2026-08-28_信号_toy_lowvol/orders_2026-08-26.csv`(20 只等权 5%,
   数据末日 2026-08-26,落后 0 日)+ `signal_log.md`;入口 `python -m signals.run_signal --strategy toy_lowvol`。

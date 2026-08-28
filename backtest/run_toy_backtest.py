@@ -14,6 +14,7 @@ import numpy as np
 import pandas as pd
 
 from backtest.engine import CostModel, run_backtest
+from backtest.metrics import nav_stats
 from backtest.prices import adjusted_panels
 from core.bootstrap import init
 from core.calendar import TradingCalendar
@@ -24,14 +25,7 @@ from instruments.universe import IndexUniverse
 from strategies.toy_lowvol import low_vol_weights
 
 
-def _stats(nav, periods_per_year=252):
-    ret = nav.pct_change().dropna()
-    total = nav.iloc[-1] / nav.iloc[0] - 1
-    years = len(nav) / periods_per_year
-    cagr = (nav.iloc[-1] / nav.iloc[0]) ** (1 / years) - 1 if years > 0 else np.nan
-    dd = (nav / nav.cummax() - 1).min()
-    sharpe = (ret.mean() / ret.std() * np.sqrt(periods_per_year)) if ret.std() > 0 else np.nan
-    return {"total_return": total, "cagr": cagr, "max_drawdown": dd, "sharpe": sharpe}
+_stats = nav_stats      # 指标口径单一来源 backtest/metrics.py(保留旧名供 run_rqalpha_toy 引用)
 
 
 def run(start, end, index="000300.SH", n_select=20, lookback=20, init_cash=1_000_000.0,

@@ -6,3 +6,4 @@ rqalpha==6.3.0          # 卡2 裁决:生产回测引擎(数据源换成我们�
 pyarrow>=17             # parquet 读写与下推过滤
 alphalens-reloaded==0.4.6   # 卡4:因子 tear sheet(只经 factors/alphalens_wrapper 调用,T+1 口径锁死)
 quantstats==0.0.81          # 卡4:净值绩效 html 报告(backtest/quantstats_report)
+streamlit==1.62.0           # 卡6:研发面板(dashboard/app.py,只读 reports)
