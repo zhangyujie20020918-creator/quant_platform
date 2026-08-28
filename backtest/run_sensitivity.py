@@ -23,13 +23,22 @@ def parse_grid(spec):
     return path.strip(), [float(v) for v in values.split(",")]
 
 
-def cliff(cells, threshold_ratio):
-    """相邻格年化差 > threshold_ratio × max(|两格年化|) 即视为悬崖;返回悬崖对列表。"""
-    out = []
+def cliff(cells, threshold_ratio, axes=None):
+    """相邻格(网格上每个维度索引相差 ≤1 且只有一个维度不同)年化差 > threshold_ratio × max(|两格年化|) 即视为悬崖;
+    axes: 各维度的取值列表(定义"相邻");缺省时按各维度出现过的取值排序推断。返回 [(a, b, cagr_a, cagr_b)]。"""
     keys = list(cells)
+    if not keys:
+        return []
+    ndim = len(keys[0])
+    axes = axes or [sorted({k[i] for k in keys}) for i in range(ndim)]
+    pos = {k: tuple(axes[i].index(k[i]) for i in range(ndim)) for k in keys}
+    out = []
     for a in keys:
         for b in keys:
-            if a < b and sum(x != y for x, y in zip(a, b)) == 1:      # 只比相邻(仅一个参数不同)
+            if a >= b:
+                continue
+            d = [abs(pos[a][i] - pos[b][i]) for i in range(ndim)]
+            if sum(1 for x in d if x) == 1 and max(d) == 1:            # 恰好一个维度相邻一格
                 ra, rb = cells[a]["cagr"], cells[b]["cagr"]
                 scale = max(abs(ra), abs(rb), 1e-9)
                 if abs(ra - rb) > threshold_ratio * scale:
@@ -46,6 +55,7 @@ def main():
     ap.add_argument("--grid", action="append", required=True, help='如 "params.drawdown_buy=0.70,0.75,0.80"')
     ap.add_argument("--date", default=dt.date.today().isoformat())
     ap.add_argument("--cliff-ratio", type=float, default=None, help="悬崖判定比例(默认读 config protocol.plateau_cliff_ratio)")
+    ap.add_argument("--rebuild", action="store_true", help="不重跑,从已有各格 nav.csv 重建九宫格与悬崖判定")
     args = ap.parse_args()
     log = init("sensitivity")
     cfg = load_config()
@@ -58,12 +68,21 @@ def main():
         overrides = dict(zip(names, combo))
         tag = "_".join("%s%g" % (n.split(".")[-1], v) for n, v in overrides.items())
         log.info("▶ %s", overrides)
-        out = run_strategy(args.strategy, cfg, args.start, args.end, date=args.date, init_cash=args.cash,
-                           overrides=overrides, tag="sens_" + tag)
+        if args.rebuild:
+            import pandas as pd
+            from backtest.metrics import nav_stats
+            from core.config import ROOT
+            d = os.path.join(ROOT, "reports", "%s_回测_%s_sens_%s" % (args.date, args.strategy, tag))
+            nav = pd.read_csv(os.path.join(d, "nav.csv"), parse_dates=["date"]).set_index("date")["strategy"]
+            trades = pd.read_csv(os.path.join(d, "rq_runs", "trades.csv"), encoding="utf-8-sig")
+            out = {"stats": nav_stats(nav), "trades": len(trades)}
+        else:
+            out = run_strategy(args.strategy, cfg, args.start, args.end, date=args.date, init_cash=args.cash,
+                               overrides=overrides, tag="sens_" + tag)
         cells[combo] = dict(out["stats"], trades=out["trades"])
         log.info("   年化 %.2f%% 回撤 %.1f%% 夏普 %.2f(%d 笔)", out["stats"]["cagr"] * 100, out["stats"]["max_drawdown"] * 100,
                  out["stats"]["sharpe"], out["trades"])
-    cliffs = cliff(cells, ratio)
+    cliffs = cliff(cells, ratio, axes=[g[1] for g in grids])
 
     rows, cols = grids[0][1], (grids[1][1] if len(grids) > 1 else [None])
     lines = ["# 参数平原扫描 · %s(%s → %s,本金 %.0f)" % (args.strategy, args.start, args.end, args.cash), "",

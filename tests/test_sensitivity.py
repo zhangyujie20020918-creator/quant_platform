@@ -15,3 +15,9 @@ def test_cliff_only_compares_adjacent_cells():
     assert ((0.75, 0.4), (0.8, 0.4)) in pairs             # 0.09 → 0.02:差 0.07 > 0.5×0.09 → 悬崖
     assert ((0.7, 0.4), (0.75, 0.4)) not in pairs         # 平原
     assert all(sum(x != y for x, y in zip(a, b)) == 1 for a, b, _, _ in out)
+
+
+def test_cliff_skips_non_neighbouring_cells():
+    cells = {(0.7, 0.4): {"cagr": 0.10}, (0.75, 0.4): {"cagr": 0.10}, (0.8, 0.4): {"cagr": 0.01}}
+    out = cliff(cells, 0.5, axes=[[0.7, 0.75, 0.8], [0.4]])
+    assert [(a, b) for a, b, _, _ in out] == [((0.75, 0.4), (0.8, 0.4))]      # 0.7 与 0.8 隔着 0.75,不比

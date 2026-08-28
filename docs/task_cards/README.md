@@ -13,3 +13,9 @@
 | 卡5 策略与信号 | 两原型基类+策略包格式+orders CSV契约 | 玩具策略出合规信号文件 | **完成,人类验收放行(2026-08-28 用户"继续")**:`strategies/{base,package,risk,context}.py` + 第一个策略包 `strategies/toy_lowvol/`(config/strategy/说明书,status=toy)+ `signals/{schema,run_signal}.py`(新鲜度红线);真实信号 `reports/2026-08-28_信号_toy_lowvol/orders_2026-08-26.csv`(20 只);回测与出信号同一 signal(),卡3 交叉验证数字不变;220 测试绿 |
 | 卡6 研发面板 | Streamlit两屏:回测浏览器/因子tear sheet | 面板看到卡3~5产出 | **完成,人类验收放行(2026-08-28 用户"继续")**:`dashboard/{catalog,loaders,app}.py` 四屏(回测浏览器/因子 tear sheet/信号/报告),只读 reports;AppTest 无头冒烟真实 reports 四屏无异常 `reports/2026-08-28_卡6面板/smoke.md`;`streamlit run dashboard/app.py`;230 测试绿 |
 | 卡7 示踪弹 | 玩具策略全流程贯通 | 框架v1完工打tag | **完成,待人类验收(2026-08-28)**:`python -m tools.tracer` 一条命令 S0→S1→S2→S3/S4→S5→面板 6/6 通过(545s),`reports/2026-08-28_示踪弹/trace.md`;阳性对照复现基线、阴性对照 rejected、交叉验证 Δ −0.22pp、信号 20 只;tag `v1.0.0`;235 测试绿 |
+
+## 策略任务卡(框架 v1 之后的研究,一想法一卡)
+
+| 卡 | 想法 | 状态 | 结论 / 去向 |
+|---|---|---|---|
+| 策略1 深跌反弹 `dd_rebound` | 主板+创业板,历史高点回撤 75% 买、反弹到高点一半卖,两周调仓持 10 只 | **已证伪(2026-08-28),待人类裁决** | 全成本年化 −0.56% vs 沪深300 6.89%(零成本亦仅 0.92%);九宫格全在 −0.7%~+2%,相邻格相对差大(近零噪声)。`reports/2026-08-28_回测_dd_rebound/strategy1_report.md` |
