@@ -38,6 +38,17 @@ def data_lag_days(cal, data_asof, asof):
     return int(len(cal.trading_days(data_asof + pd.Timedelta(days=1), asof)))
 
 
+def last_holdings(strategy_id, cfg, root=None):
+    """上一份信号文件的目标权重 = 假定已执行的当前持仓(出信号侧的持仓状态来源;没有则空)。"""
+    from core.outputs import reports_root
+    import glob
+    files = sorted(glob.glob(os.path.join(reports_root(cfg, root), "*_信号_%s" % strategy_id, "orders_*.csv")))
+    if not files:
+        return {}
+    df = pd.read_csv(files[-1], encoding="utf-8-sig")
+    return {str(r["symbol"]): float(r["target_weight"]) for _, r in df.iterrows()}
+
+
 def latest_trading_day(cal, today):
     days = cal.trading_days("1900-01-01", pd.Timestamp(today))
     if len(days) == 0:
@@ -66,7 +77,10 @@ def generate(strategy_id, cfg, root=None, asof=None, packages_root=None, today=N
 
     lookback = int(strategy.params.get("lookback", 0))
     start = (signal_date - pd.Timedelta(days=PANEL_BUFFER_CAL_DAYS + lookback * 2)).strftime("%Y-%m-%d")
-    ctx = StoreContext.load(cfg, root, pkg.config["universe"], start, signal_date)
+    holdings = last_holdings(strategy_id, cfg, root)              # 有状态策略(如深跌反弹)需要"当前持仓":取上一份信号文件
+    if any(k in strategy.params for k in ("drawdown_buy", "recover_sell")) or pkg.config.get("stateful"):
+        start = "1900-01-01"                                       # 历史高点类策略需要全历史面板
+    ctx = StoreContext.load(cfg, root, pkg.config["universe"], start, signal_date, holdings=holdings)
     raw_weights = strategy.signal(signal_date, ctx)
     weights = apply_risk(raw_weights, strategy.risk)
 

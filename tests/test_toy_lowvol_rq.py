@@ -19,7 +19,7 @@ COSTS_ALIGN = {"commission_rate": 0.0002, "min_commission": 0.0, "stamp_tax_sell
 # ---------- 纯函数:调仓计划(先清非目标 → 减仓 → 按剩余现金依次买入,整手) ----------
 
 def test_plan_rebalance_sells_first_then_buys_within_expected_cash():
-    orders = plan_rebalance(cash=200.0, positions={"A": 1000}, opens={"A": 10.0, "B": 5.0},
+    orders = plan_rebalance(cash=200.0, positions={"A": 1000}, prices={"A": 10.0, "B": 5.0},
                             target={"B": 1.0}, costs=COSTS_ALIGN, round_lot=100)
     # 卖 A 1000 股得 10000×(1−0.0002)=9998 → 现金 10198;买 B:权益 10200×1.0=10200,预算 min(10200, 10198)
     # → 10198/(5×1.0002)=2039.19 → 整手 2000 股
@@ -27,14 +27,14 @@ def test_plan_rebalance_sells_first_then_buys_within_expected_cash():
 
 
 def test_plan_rebalance_skips_names_without_open_price_and_zero_lots():
-    orders = plan_rebalance(cash=1000.0, positions={"A": 100}, opens={"A": float("nan"), "B": 5.0},
+    orders = plan_rebalance(cash=1000.0, positions={"A": 100}, prices={"A": float("nan"), "B": 5.0},
                             target={"B": 0.05}, costs=COSTS_ALIGN, round_lot=100)
     # A 无价不卖;B 目标 (1000+0)×0.05=50 元 → 不足一手 → 不下单
     assert orders == []
 
 
 def test_plan_rebalance_trims_over_weight_position():
-    orders = plan_rebalance(cash=0.0, positions={"A": 1000}, opens={"A": 10.0},
+    orders = plan_rebalance(cash=0.0, positions={"A": 1000}, prices={"A": 10.0},
                             target={"A": 0.5}, costs=COSTS_ALIGN, round_lot=100)
     assert orders == [("A", -500)]
 

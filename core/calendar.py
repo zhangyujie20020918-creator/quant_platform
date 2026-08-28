@@ -90,7 +90,7 @@ class TradingCalendar:
         return cur
 
     def rebalance_dates(self, start, end, freq="monthly_first"):
-        """通用调仓日历。freq:monthly_first=每月第一个交易日;weekly_first=每周第一个交易日。
+        """通用调仓日历。freq:monthly_first=每月第一个交易日;weekly_first=每周第一个交易日;biweekly_first=隔周的周首交易日。
         新频率按需在此扩展,禁止各策略自行实现调仓日逻辑。"""
         days = self.trading_days(start, end)
         if len(days) == 0:
@@ -100,6 +100,8 @@ class TradingCalendar:
             firsts = s.groupby(days.to_period("M")).first()
         elif freq == "weekly_first":
             firsts = s.groupby(days.to_period("W")).first()
+        elif freq == "biweekly_first":
+            firsts = s.groupby(days.to_period("W")).first().iloc[::2]      # 隔周取一次,以区间首周为锚
         else:
             raise ValueError("未知调仓频率: %r(在 core/calendar.py 扩展,不要在策略层自实现)" % freq)
         return pd.DatetimeIndex(firsts.values)

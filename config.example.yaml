@@ -41,6 +41,7 @@ protocol:                      # 防挖矿协议阈值(全部为可改默认值;
   positive_control_tolerance: 0.4   # 阳性对照:已知因子复现容差(±)
   redundancy_corr_max: 0.6     # 与active因子的冗余相关阈值
   cross_engine_tolerance_pct: 1.5   # S4交叉验证:独立引擎复现偏差容差(百分点)
+  plateau_cliff_ratio: 0.5          # S3 参数平原:相邻参数格年化差超过两格绝对值较大者的该比例 → 悬崖,悬崖参数不用
   # ---- 因子检验管线(卡4;批前声明即本节当前值) ----
   signal_freq: monthly_first         # 因子信号日频率(core.calendar 调仓频率;月频 × holding_days=20 非重叠)
   holding_days: 20                   # 前瞻收益持有期(交易日):open[T+1+H]/open[T+1]−1

@@ -138,3 +138,23 @@ def test_real_toy_lowvol_package_is_valid_and_not_approved():
     s = build_strategy(pkg)
     assert isinstance(s, CrossSectionalStrategy) and pkg.config["status"] == "toy" and pkg.config["benchmark"]
     assert pkg.config["crash_definition"] and os.path.exists(os.path.join(pkg.dir, "说明书.md"))
+
+
+def test_package_execution_and_costs_sections_validated(tmp_path):
+    cfg = dict(GOOD, execution={"mode": "next_close", "slippage": 0.02},
+               costs={"commission_rate": 0.005, "min_commission": 0.0, "stamp_tax_sell": [], "transfer_fee": []})
+    pkg = load_package("fixed_mix", root=_pkg(tmp_path, cfg))
+    assert pkg.config["execution"]["mode"] == "next_close"
+    with pytest.raises(PackageError):
+        load_package("fixed_mix", root=_pkg(tmp_path, dict(GOOD, execution={"mode": "same_close"})))
+    assert load_package("fixed_mix", root=_pkg(tmp_path, GOOD)).config["execution"] == {"mode": "next_open", "slippage": 0.0}
+
+
+def test_apply_param_overrides_returns_new_config_without_touching_package(tmp_path):
+    from strategies.package import apply_overrides
+    pkg = load_package("fixed_mix", root=_pkg(tmp_path))
+    new = apply_overrides(pkg.config, {"params.w_bond": 0.3, "execution.slippage": 0.01})
+    assert new["params"]["w_bond"] == 0.3 and new["execution"]["slippage"] == 0.01
+    assert pkg.config["params"]["w_bond"] == 0.6                                   # 原包不动
+    with pytest.raises(PackageError):
+        apply_overrides(pkg.config, {"params.not_exist": 1})                      # 不存在的键拒绝(防拼错静默)

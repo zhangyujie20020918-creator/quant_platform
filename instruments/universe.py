@@ -6,6 +6,7 @@ instruments 层,不住 strategy——signals 与 strategies 都可依赖 univers
 
 PIT 纪律:as-of 日 d 的成分 = index_weight 中日期 ≤ d 的最近一次快照(避免用到未来调仓)。
 """
+import numpy as np
 import pandas as pd
 
 from data import store
@@ -41,3 +42,25 @@ class IndexUniverse:
     def all_symbols(self):
         """历史上出现过的全部成分(建全历史价格面板时用)。"""
         return sorted(self._w["symbol"].unique().tolist()) if len(self._w) else []
+
+
+class BoardUniverse:
+    """按板块的全市场股票池(PIT):stock_basic.market ∈ boards,上市日 ≤ asof < 退市日;含已退市股,防幸存者偏差。
+    ST 剔除不在此层(由策略经 ctx.is_st 按日判断)。"""
+
+    def __init__(self, boards, root=None, cfg=None):
+        b = store.read_table("stock_basic", root=root, cfg=cfg)
+        b = b[b["market"].isin(list(boards))].sort_values("symbol") if len(b) else b
+        self.boards = list(boards)
+        self._symbols = b["symbol"].tolist()
+        self._list = pd.to_datetime(b["list_date"]).to_numpy()
+        self._delist = pd.to_datetime(b["delist_date"]).to_numpy()
+
+    def constituents(self, asof):
+        ts = np.datetime64(pd.Timestamp(asof))
+        listed = self._list <= ts
+        alive = pd.isna(self._delist) | (self._delist > ts)
+        return [s for s, ok in zip(self._symbols, listed & alive) if ok]
+
+    def all_symbols(self):
+        return list(self._symbols)

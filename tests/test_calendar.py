@@ -63,3 +63,11 @@ def test_rebalance_dates_frequencies(tmp_path):
     approx = TradingCalendar().rebalance_dates("2026-01-01", "2026-02-28")
     assert list(approx) == [pd.Timestamp("2026-01-01"), pd.Timestamp("2026-02-02")]
     assert len(cal.rebalance_dates("2026-03-01", "2026-03-31")) == 0
+
+
+def test_biweekly_first_rebalance_dates(tmp_path):
+    p, days = _file_cal(tmp_path)
+    cal = TradingCalendar.load({"calendar": {"file": str(p)}}, root=str(tmp_path))
+    # 周首交易日:01-05, 01-12, 01-19, 01-26, 02-02, 02-09, 02-18(02-16/17 假), 02-23 → 隔周取一个
+    bw = [d.strftime("%Y-%m-%d") for d in cal.rebalance_dates("2026-01-01", "2026-02-27", "biweekly_first")]
+    assert bw == ["2026-01-05", "2026-01-19", "2026-02-02", "2026-02-18"]

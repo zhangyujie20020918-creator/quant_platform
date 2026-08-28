@@ -21,33 +21,41 @@ from backtest.rqalpha_adapter.symbols import to_order_book_id
 from core.config import ROOT, load_config
 from core.outputs import report_dir, run_dir
 from strategies.context import make_universe
-from strategies.package import build_strategy, load_package
-from strategies.toy_lowvol_rq import make_strategy
+from strategies.package import Package, apply_overrides, build_strategy, load_package
+from strategies.rq_runner import make_strategy
 
 warnings.filterwarnings("ignore", category=FutureWarning, module="rqalpha")
 
 
 def run_strategy(strategy_id, cfg, start, end, root=None, packages_root=None, config_path=None, date=None,
-                 init_cash=1_000_000.0):
+                 init_cash=1_000_000.0, overrides=None, tag=None):
+    """overrides: {"params.drawdown_buy": 0.7} 形式的参数覆盖(敏感性扫描用,原包不动);tag: 产出子目录后缀。"""
     root = root or ROOT
     date = date or dt.date.today().isoformat()
     pkg = load_package(strategy_id, root=packages_root)
+    if overrides:
+        pkg = Package(pkg.id, pkg.dir, apply_overrides(pkg.config, overrides))
     strategy = build_strategy(pkg)
+    topic = "回测_" + strategy_id + (("_" + tag) if tag else "")
     preload = make_universe(pkg.config["universe"], cfg=cfg, root=root).all_symbols()
     benchmark = to_order_book_id(strategy.benchmark[0])
-    out_dir = report_dir("回测_" + strategy_id, date=date, cfg=cfg, root=root)
-    rq_dir = run_dir("回测_" + strategy_id, "rq", date=date, cfg=cfg, root=root)
+    out_dir = report_dir(topic, date=date, cfg=cfg, root=root)
+    rq_dir = run_dir(topic, "rq", date=date, cfg=cfg, root=root)
 
     funcs = make_strategy(pkg, cfg=cfg, root=root)
     state = funcs.pop("state")
     mod_store = {"enabled": True, "lib": "backtest.rqalpha_adapter.mod", "preload": preload, "root": root}
     if config_path:
         mod_store["config_path"] = config_path
+    if pkg.config.get("costs"):
+        mod_store["costs"] = dict(pkg.config["costs"])            # 策略包级成本覆盖(如"千五全包")
+    execution = pkg.config.get("execution") or {}
     config = {
         "base": {"start_date": start, "end_date": end, "accounts": {"stock": init_cash},
                  "data_bundle_path": os.path.join(root, "no_bundle")},
         "extra": {"log_level": "error"},
         "mod": {"store": mod_store, "sys_progress": {"enabled": False},
+                "sys_simulation": {"slippage": float(execution.get("slippage", 0.0) or 0.0)},   # 仅 next_close 模式生效
                 "sys_analyser": {"enabled": True, "plot": False, "benchmark": benchmark, "report_save_path": rq_dir}},
     }
     t0 = time.time()
@@ -65,8 +73,8 @@ def run_strategy(strategy_id, cfg, start, end, root=None, packages_root=None, co
         "# 回测报告 · %s(%s)" % (strategy_id, pkg.config["name"]), "",
         "区间 %s → %s;初始资金 %.0f;universe %s;基准 %s;状态 **%s**。" % (start, end, init_cash, pkg.config["universe"],
                                                                      strategy.benchmark[0], pkg.config["status"]),
-        "参数:%s;风控:%s;成本:品种规则表 instruments.cn_stock.costs;RQAlpha 内置涨跌停/停牌/T+1/退市清算。"
-        % (strategy.params, strategy.risk), "",
+        "参数:%s;风控:%s;执行:%s;成本:%s;RQAlpha 内置涨跌停/停牌/T+1/退市清算。"
+        % (strategy.params, strategy.risk, execution, pkg.config.get("costs") or "品种规则表 instruments.cn_stock.costs"), "",
         "| | 总收益 | 年化 | 最大回撤 | 夏普 |", "|---|---|---|---|---|",
         "| 策略 | %.1f%% | %.2f%% | %.1f%% | %.2f |" % (stats["total_return"] * 100, stats["cagr"] * 100, stats["max_drawdown"] * 100, stats["sharpe"]),
         "| 基准 | %.1f%% | %.2f%% | %.1f%% | %.2f |" % (bstats["total_return"] * 100, bstats["cagr"] * 100, bstats["max_drawdown"] * 100, bstats["sharpe"]),
@@ -90,9 +98,17 @@ def main():
     ap.add_argument("--end", default="2022-06-30")
     ap.add_argument("--date", default=dt.date.today().isoformat())
     ap.add_argument("--cash", type=float, default=1_000_000.0)
+    ap.add_argument("--set", action="append", default=[], help='覆盖策略包参数,如 --set params.drawdown_buy=0.7(值按 YAML 解析)')
+    ap.add_argument("--tag", default=None, help="产出目录后缀(对照实验用),如 nocost")
     args = ap.parse_args()
     log = init("run_strategy")
-    out = run_strategy(args.strategy, load_config(), args.start, args.end, date=args.date, init_cash=args.cash)
+    import yaml
+    overrides = {}
+    for item in args.set:
+        path, raw = item.split("=", 1)
+        overrides[path.strip()] = yaml.safe_load(raw.strip())
+    out = run_strategy(args.strategy, load_config(), args.start, args.end, date=args.date, init_cash=args.cash,
+                       overrides=overrides or None, tag=args.tag)
     st = out["stats"]
     log.info("%s:总收益 %.1f%% | 年化 %.2f%% | 回撤 %.1f%% | 夏普 %.2f | %d 笔 → %s",
              args.strategy, st["total_return"] * 100, st["cagr"] * 100, st["max_drawdown"] * 100, st["sharpe"], out["trades"], out["report"])

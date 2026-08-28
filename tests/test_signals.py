@@ -130,3 +130,17 @@ def test_generic_backtest_runner_on_package(world, tmp_path):
     assert os.path.exists(out["report"]) and out["report"].endswith("backtest.md")
     assert len(out["nav"]) == 13 and out["signals"] == 3 and out["trades"] >= 1
     assert os.path.exists(os.path.join(os.path.dirname(out["report"]), "nav.csv"))
+
+
+def test_store_context_panels_and_holdings(world):
+    from strategies.context import StoreContext
+    root, cfg = world
+    ctx = StoreContext.load(cfg, root, {"boards": ["主板", "创业板"]}, "2014-06-01", "2014-06-20",
+                            holdings={"600000.SH": 0.5})
+    close = ctx.panel("close", "2014-06-12")
+    assert close.index.max() == pd.Timestamp("2014-06-12") and "600000.SH" in close.columns      # ≤asof,后复权
+    assert close.loc["2014-06-12", "000001.SZ"] == pytest.approx(9.71 * 71.054)
+    amt = ctx.panel("amount", "2014-06-12")
+    assert amt.loc["2014-06-12", "000001.SZ"] == pytest.approx(9.71 * 1_000_000)                # 原始成交额
+    assert ctx.holdings() == {"600000.SH": 0.5}
+    assert "688001.SH" not in ctx.constituents("2014-06-12") and "000005.SZ" in ctx.constituents("2014-06-12")

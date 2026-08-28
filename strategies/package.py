@@ -3,7 +3,8 @@
 
 config.yaml 必填:id / name / type(cross_sectional|time_series)/ universe / params / benchmark(≥1,原则6)/
 risk / crash_definition(SOP S5 崩溃定义,≥1 条);可选 freshness_max_lag_days、status(toy|research|approved)、
-approved_by(status=approved 时必填 = 人类签字)。strategy.py 须提供 build(package) -> Strategy。
+approved_by(status=approved 时必填 = 人类签字)、execution {mode: next_open|next_close, slippage}、costs(覆盖品种规则表)。
+strategy.py 须提供 build(package) -> Strategy。
 """
 import importlib.util
 import os
@@ -14,6 +15,7 @@ from core.config import ROOT
 from strategies.base import Strategy
 
 REQUIRED = ("id", "name", "type", "universe", "params", "benchmark", "risk", "crash_definition")
+EXEC_MODES = ("next_open", "next_close")     # 信号日收盘算 → 次日开盘(集合竞价,无滑点)/ 次日收盘(滑点生效)
 TYPES = ("cross_sectional", "time_series")
 STATUSES = ("toy", "research", "approved")
 
@@ -50,6 +52,16 @@ def _validate(strategy_id, cfg):
     if status == "approved" and not cfg.get("approved_by"):
         raise PackageError("策略包 %s status=approved 但无 approved_by(人类签字)" % strategy_id)
     cfg["status"] = status
+    ex = dict(cfg.get("execution") or {})
+    ex.setdefault("mode", "next_open")
+    ex.setdefault("slippage", 0.0)
+    if ex["mode"] not in EXEC_MODES:
+        raise PackageError("策略包 %s execution.mode 非法: %r(应为 %s)" % (strategy_id, ex["mode"], "/".join(EXEC_MODES)))
+    if float(ex["slippage"]) < 0:
+        raise PackageError("策略包 %s execution.slippage 不能为负" % strategy_id)
+    cfg["execution"] = ex
+    if cfg.get("costs") is not None and not isinstance(cfg["costs"], dict):
+        raise PackageError("策略包 %s costs 应为映射(覆盖品种规则表 costs 个别键)" % strategy_id)
     return cfg
 
 
@@ -80,3 +92,20 @@ def build_strategy(package):
     if strategy.type != package.config["type"]:
         raise PackageError("策略包 %s 原型类型不一致: config=%s, 类=%s" % (package.id, package.config["type"], strategy.type))
     return strategy
+
+
+def apply_overrides(config, overrides):
+    """参数敏感性扫描用:按点路径覆盖策略包 config 的既有键,返回新 dict(原包不动);键不存在即报错。"""
+    import copy
+    new = copy.deepcopy(config)
+    for path, value in (overrides or {}).items():
+        node = new
+        keys = path.split(".")
+        for k in keys[:-1]:
+            if not isinstance(node, dict) or k not in node:
+                raise PackageError("覆盖路径不存在: %s" % path)
+            node = node[k]
+        if not isinstance(node, dict) or keys[-1] not in node:
+            raise PackageError("覆盖路径不存在: %s" % path)
+        node[keys[-1]] = value
+    return new
