@@ -1,5 +1,16 @@
 # CHANGELOG
 
+## 2026-08-28 项目整理:旧项目归档删除,工作区只剩 quant_platform
+
+- 用户裁决:cb_quant(旧可转债)、cb_quant_handover(+zip)、选股策略(mtrading)、根目录 xtquant 时代的 AGENTS.md/docs 全部删除;
+  cb_quant 先打最终归档 `D:\qmt_strategy_archive\cb_quant_final_2026-08-28.zip`(25.5M,含 .git/预注册/报告/论文登记,排除
+  venv/cache/开源库克隆;台账 ledger 从未落 positions.csv,无实盘记录),xtquant 参考随归档保存;选股策略用户确认无需归档。
+- quant_platform 瘦身:删探针环境 research/engine_probe(RQAlpha 已零 bundle)、`~/.rqalpha/bundle` 3.4G、cache 回补日志;
+  `cache/fetch_failures.csv` 与 `reports/*_runs/` 保留。合计释放约 7.4G。工作区:`D:\qmt_strategy\{quant_platform, 改造方案}`。
+- 新增 `docs/使用指南.md`(傻瓜式:安装 → 数据 → 想法 → 因子 → 策略包 → 回测 → 信号 → 面板 → 示踪弹 → 日常运营)。
+- 新增通用回测入口 `python -m backtest.run_strategy --strategy <id>`(任意策略包 → RQAlpha 全成本 → `reports/{日期}_回测_<id>/`;
+  玩具策略实测与卡3 全成本版完全一致:年化 4.29% / 回撤 −31.0% / 3453 笔),README.md 入口页。测试 235→236 全绿。
+
 ## 2026-08-28 卡7 · 示踪弹贯通 → **框架 v1 完工(tag v1.0.0)**,待人类验收
 
 - **里程碑达成:`python -m tools.tracer --date 2026-08-28` 一条命令把玩具策略从 S0 到面板跑通,6/6 环节通过,545 秒**,

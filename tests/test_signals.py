@@ -116,3 +116,17 @@ def test_generate_refuses_stale_data(tmp_path_factory, tmp_path):
     # 策略包放宽到 2 → 允许,并把落后天数写进文件
     out = generate("toy_small", cfg, root=root, packages_root=_toy_pkg(tmp_path, freshness=2), today=D(2014, 6, 24))
     assert out["orders"]["data_lag_days"].iloc[0] == 2 and out["path"].endswith("orders_2014-06-20.csv")
+
+
+def test_generic_backtest_runner_on_package(world, tmp_path):
+    # 傻瓜版回测入口:任意策略包 → RQAlpha → 报告(与 run_signal 同一策略包、同一 signal())
+    from backtest.run_strategy import run_strategy
+    root, cfg = world
+    cfg_path = os.path.join(root, "config.yaml")
+    with open(cfg_path, "w", encoding="utf-8") as f:
+        yaml.safe_dump(cfg, f, allow_unicode=True)
+    out = run_strategy("toy_small", cfg, "2014-06-04", "2014-06-20", root=root, packages_root=_toy_pkg(tmp_path),
+                       config_path=cfg_path, date="2014-06-20")
+    assert os.path.exists(out["report"]) and out["report"].endswith("backtest.md")
+    assert len(out["nav"]) == 13 and out["signals"] == 3 and out["trades"] >= 1
+    assert os.path.exists(os.path.join(os.path.dirname(out["report"]), "nav.csv"))
