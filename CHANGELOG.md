@@ -1,6 +1,32 @@
 # CHANGELOG
 
-## 2026-08-28 卡4 · 因子平台(注册表 + 防挖矿管线 + alphalens/quantstats,待人类验收)
+## 2026-08-28 卡5 · 策略与信号(两原型基类 + 策略包 + orders CSV 契约,待人类验收)
+
+- **里程碑达成:玩具策略出合规信号文件** `reports/2026-08-28_信号_toy_lowvol/orders_2026-08-26.csv`(20 只等权 5%,
+  数据末日 2026-08-26,落后 0 日)+ `signal_log.md`;入口 `python -m signals.run_signal --strategy toy_lowvol`。
+- **两原型基类** `strategies/base.py`:Strategy(`signal(asof, ctx)` 纯逻辑、`rebalance_days` 只走 core.calendar)、
+  CrossSectionalStrategy(截面选券)、TimeSeriesStrategy(时序配置,测试替身验证契约)。ctx 接口
+  constituents/is_st/closes 两个实现 `strategies/context.py`:StoreContext(出信号)/ RQAlphaContext(回测)。
+- **策略包格式**(原则5/6)`strategies/package.py`:config 必填 id/name/type/universe/params/benchmark(≥1)/risk/
+  crash_definition(≥1);status toy|research|approved,approved 须 approved_by(人类签字);`build_strategy` 从包目录
+  加载 strategy.py。第一个包 `strategies/toy_lowvol/`(config.yaml + strategy.py + 说明书.md 含崩溃定义三条,status=toy,
+  未签字);旧模块 `strategies/toy_lowvol.py` 升级为包(select_low_vol/low_vol_weights 原路径可用)。
+- **风控参数** `strategies/risk.py::apply_risk`(max_weight 封顶留现金、max_positions 截断;等权并列保持策略顺序——
+  首版按 symbol 重排曾让对齐版年化 4.86%→4.83%,修正后恢复,交叉验证数字与卡3 完全一致)。
+- **信号文件契约** `signals/schema.py`:列 strategy_id/signal_date/symbol/side/target_weight/ref_price/data_asof/
+  data_lag_days/generated_at;文件 = 完整目标组合(未列出即 0),side=long,权重 ∈[0,1] 合计 ≤1,ref_price=信号日原始收盘;
+  `validate_orders` 拒绝不合规。
+- **新鲜度红线**(SOP S5 军规9):`data_lag_days` = 数据末日之后至 asof 的交易日数 > 红线(策略包覆盖 > 平台
+  data.freshness_max_lag_days)→ FreshnessError,不落文件;测试用延伸日历的合成 store 验证拒绝与放宽两条路径。
+- **回测与出信号同一逻辑**:`strategies/toy_lowvol_rq.make_strategy` 改为用策略包 + RQAlphaContext(旧 params 入口兼容),
+  卡3 的 RQAlpha 玩具策略测试与真实数据交叉验证(Δ年化 −0.22pp,相关 0.9994)原样通过;StoreContext 历史 asof 选券
+  与回测同日选券一致(测试锁死)。
+- 测试 194→220 全绿。局限:交易日历文件只到数据末日,"今日前最近交易日"退化为数据末日时新鲜度可能低估;信号文件只表达
+  目标权重,不含持仓差分;时序原型本卡无真实实例。
+
+## 2026-08-28 卡4 · 因子平台(注册表 + 防挖矿管线 + alphalens/quantstats)
+
+- **人类验收:2026-08-28 放行(用户"继续"),开卡5 策略与信号。**
 
 - **里程碑达成:真实数据出完整 tear sheet**(vol_20 / mom_120_20 / rev_20 各一份,alphalens 全套图 + IC/分组 CSV),
   报告 `reports/2026-08-28_卡4因子检验/factor_verdict.md`;入口 `python -m factors.run_factor_tests`(约 8 分钟)。

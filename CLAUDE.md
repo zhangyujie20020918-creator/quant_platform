@@ -41,3 +41,11 @@
   样本外每因子只评估一次,对照组失败本批作废,阈值全在 config.protocol)。
 - 前瞻收益唯一入口 `factors/forward_returns.py`(open[T+1+H]/open[T+1]−1);alphalens 只能经
   `factors/alphalens_wrapper.py` 调用(价格入口锁 T+1 开盘),裸调用视为违规。
+
+## 策略包与信号(卡5 起)
+
+- 策略 = 策略包 `strategies/<id>/{config.yaml, strategy.py, 说明书.md}`(`strategies/package.py` 校验:五段必填、
+  benchmark ≥1、crash_definition ≥1、approved 须人类签字);信号逻辑写在 `Strategy.signal(asof, ctx)`(引擎无关),
+  回测(RQAlphaContext)与出信号(StoreContext)共用同一份代码;调仓日只走 core.calendar;风控经 `strategies/risk.py`。
+- 出信号只走 `python -m signals.run_signal --strategy <id>`:数据落后超过新鲜度红线即拒绝;文件契约见
+  `signals/schema.py`(完整目标组合,未列出即 0)。status≠approved 的策略信号不得用于交易。

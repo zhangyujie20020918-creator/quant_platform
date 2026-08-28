@@ -1,5 +1,5 @@
 # coding: utf-8
-"""玩具策略 · RQAlpha 版(与自研 strategies/toy_lowvol 共用 select_low_vol;口径对齐,供 SOP S4 交叉验证)。
+"""玩具策略 · RQAlpha 版(信号来自策略包 strategies/toy_lowvol 的 signal(),经 RQAlphaContext;口径对齐,供 SOP S4 交叉验证)。
 
 信号:调仓日(core.calendar.rebalance_dates,默认 monthly_first)收盘后,成分(instruments.universe PIT)内每只用
 history_bars(lookback+1 日收盘,前复权,跳过停牌)算对数收益标准差,取最低 n 只等权。
@@ -12,14 +12,12 @@ import math
 
 import numpy as np
 import pandas as pd
-from rqalpha.apis import get_positions, history_bars, instruments, is_st_stock, order_shares
+from rqalpha.apis import get_positions, order_shares
 
 from backtest.rqalpha_adapter.symbols import to_order_book_id
 from core.calendar import TradingCalendar
 from core.config import get
 from instruments.cn_stock import cost_rules, dated_rate
-from instruments.universe import IndexUniverse
-from strategies.toy_lowvol import select_low_vol
 
 
 def _valid(price):
@@ -75,41 +73,49 @@ def plan_rebalance(cash, positions, opens, target, costs, round_lot, date=None):
     return orders
 
 
-def make_strategy(params, cfg, root=None):
-    """params: index / n_select / lookback / rebalance(monthly_first|weekly_first) / filter_st / costs(可省,默认规则表)。
-    返回 {init, handle_bar, open_auction, state};state 是运行期记录(信号次数/每期选券),传给 run_func 前先 pop 掉。"""
-    index = params["index"]
-    n_select, lookback = int(params["n_select"]), int(params["lookback"])
-    freq = params.get("rebalance", "monthly_first")
-    filter_st = bool(params.get("filter_st", False))
-    costs = cost_rules(cfg, params.get("costs"))
+class _AdhocPackage:
+    """兼容旧入口:用 params 字典临时构造一个策略包(id toy_lowvol)。"""
+
+    def __init__(self, params):
+        self.id = "toy_lowvol"
+        self.config = {"id": self.id, "type": "cross_sectional", "universe": {"index": params["index"]},
+                       "params": dict(params), "benchmark": [params["index"]], "risk": {}}
+
+
+def make_strategy(params_or_package, cfg, root=None):
+    """接受策略包(strategies.package.load_package)或旧式 params 字典;
+    返回 {init, handle_bar, open_auction, state};state 是运行期记录(信号次数/每期选券),传给 run_func 前先 pop 掉。
+    信号逻辑来自策略包的 signal()(RQAlphaContext),与出信号共用同一份代码。"""
+    from strategies.context import RQAlphaContext, make_universe
+    from strategies.package import build_strategy
+    from strategies.risk import apply_risk
+    from strategies.toy_lowvol.strategy import ToyLowVol
+
+    if isinstance(params_or_package, dict):
+        package = _AdhocPackage(params_or_package)
+        strategy = ToyLowVol(package)
+    else:
+        package = params_or_package
+        strategy = build_strategy(package)
+    params = strategy.params
+    costs = cost_rules(cfg, params.get("costs") or package.config.get("costs"))
     round_lot = int(get(cfg, "instruments.cn_stock.round_lot"))
     state = {"pending": None, "signals": 0, "picks": {}}
 
     def init(context):
-        context.toy_universe = IndexUniverse(index, root=root, cfg=cfg)   # context.universe 是 RQAlpha 保留属性
+        context.toy_universe = make_universe(package.config["universe"], cfg=cfg, root=root)   # context.universe 是 RQAlpha 保留属性
+        context.toy_ctx = RQAlphaContext(context.toy_universe)
         cal = TradingCalendar.load(cfg, root=root)
         base = context.config.base
-        context.reb_days = {d.date() for d in cal.rebalance_dates(base.start_date, base.end_date, freq)}
+        context.reb_days = {d.date() for d in strategy.rebalance_days(cal, base.start_date, base.end_date)}
         context.toy_state = state
 
     def handle_bar(context, bar_dict):
         today = context.now.date()
         if today not in context.reb_days:
             return
-        vols = {}
-        for sym in context.toy_universe.constituents(pd.Timestamp(today)):
-            obid = to_order_book_id(sym)
-            if instruments(obid) is None:
-                continue
-            if filter_st and is_st_stock(obid):
-                continue
-            closes = history_bars(obid, lookback + 1, "1d", "close")
-            if closes is None or len(closes) < lookback + 1:
-                continue
-            ret = np.diff(np.log(closes))
-            vols[obid] = float(np.std(ret, ddof=1))
-        state["pending"] = select_low_vol(vols, n_select)
+        weights = apply_risk(strategy.signal(pd.Timestamp(today), context.toy_ctx), strategy.risk)
+        state["pending"] = {to_order_book_id(sym): w for sym, w in weights.items()}
         state["signals"] += 1
         state["picks"][today] = dict(state["pending"])
 
