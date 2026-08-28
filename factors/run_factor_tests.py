@@ -32,6 +32,16 @@ TOPIC = "卡4因子检验"
 PANEL_BUFFER_DAYS = 400      # 面板起点提前的自然日数(覆盖最长 lookback 120 交易日 + 余量)
 
 
+def report_path(out_dir):
+    """同日重跑不覆盖:首份 factor_verdict.md,其后 factor_verdict_rerun{N}.md(样本外只评估一次的证据留档)。"""
+    path = os.path.join(out_dir, "factor_verdict.md")
+    n = 1
+    while os.path.exists(path):
+        path = os.path.join(out_dir, "factor_verdict_rerun%d.md" % n)
+        n += 1
+    return path
+
+
 def _fmt(v, nd=4):
     return "—" if v is None or (isinstance(v, float) and np.isnan(v)) else ("%.*f" % (nd, v) if isinstance(v, float) else str(v))
 
@@ -100,7 +110,7 @@ def main():
     today = dt.date.fromisoformat(args.date)
 
     out_dir = report_dir(TOPIC, date=args.date)
-    report = os.path.join(out_dir, "factor_verdict.md")
+    report = report_path(out_dir)
     decl = declaration(cfg, n_candidates=sum(1 for f in ids if reg[f]["role"] == "candidate"), today=today)
     write_declaration(report, decl, ids, args.universe)          # ← 先写声明
     log.info("批前声明已写入 %s", report)

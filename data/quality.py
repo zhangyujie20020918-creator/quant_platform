@@ -153,9 +153,13 @@ def _write_report(out_dir, results, cfg):
 
 
 def main(argv=None):
+    import argparse
     from core.bootstrap import init
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--date", default=None, help="报告归档日期(默认今天)")
+    args = ap.parse_args(argv)
     init("data.quality")
-    summary = run_all()
+    summary = run_all(date=args.date)
     print("体检完成:%s;报告 %s" % ("全部通过" if summary["all_passed"] else "存在未通过项", summary["report_dir"]))
     return 0 if summary["all_passed"] else 2
 

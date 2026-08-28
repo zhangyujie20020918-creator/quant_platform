@@ -25,6 +25,8 @@
 
 一卡一会话;每卡收尾 = 测试全绿 + 里程碑可运行 + CHANGELOG;跨卡必经人类验收。
 当前看板:`docs/task_cards/README.md`。
+示踪弹 `python -m tools.tracer`:玩具策略 S0→S1→S2→S3/S4→S5→面板一条命令跑通(约 15 分钟),
+报告 `reports/{日期}_示踪弹/trace.md`;改动核心链路后跑一次即回归。
 
 ## 回测引擎(卡3 起)
 

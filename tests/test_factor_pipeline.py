@@ -93,3 +93,15 @@ def test_negative_control_active_aborts_batch(tmp_path):
     with pytest.raises(ControlFailed):
         run_batch({"leak": strong}, fwd, str(reg_path), CFG, report="r.md", data_version="x")
     assert load_registry(str(reg_path))["leak"]["status"] == "candidate"                     # 作废不写回
+
+
+def test_report_path_never_overwrites_previous_batch(tmp_path):
+    # 同日重跑(如示踪弹)不得覆盖首批报告——样本外只评估一次的证据必须留档
+    from factors.run_factor_tests import report_path
+    first = report_path(str(tmp_path))
+    assert first.endswith("factor_verdict.md")
+    open(first, "w", encoding="utf-8").write("x")
+    second = report_path(str(tmp_path))
+    assert second.endswith("factor_verdict_rerun1.md")
+    open(second, "w", encoding="utf-8").write("y")
+    assert report_path(str(tmp_path)).endswith("factor_verdict_rerun2.md")

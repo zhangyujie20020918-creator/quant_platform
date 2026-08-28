@@ -1,6 +1,23 @@
 # CHANGELOG
 
-## 2026-08-28 卡6 · 研发面板(Streamlit,只读 reports,待人类验收)
+## 2026-08-28 卡7 · 示踪弹贯通 → **框架 v1 完工(tag v1.0.0)**,待人类验收
+
+- **里程碑达成:`python -m tools.tracer --date 2026-08-28` 一条命令把玩具策略从 S0 到面板跑通,6/6 环节通过,545 秒**,
+  示踪报告 `reports/2026-08-28_示踪弹/trace.md`:
+  S0 想法登记(research/ideas.md 新增 toy_lowvol 可证伪假设行)→ S1 数据体检(退市/PIT/脏值通过,覆盖率项按卡1 人类核验接受)
+  → S2 因子检验(**阳性对照第二次运行复现基线 IC_is −0.0398 = 基线**,阴性对照 rejected,已终审因子沿用不再算样本外)
+  → S3/S4 回测 + 交叉验证(Δ年化 −0.22pp 通过,相关 0.9994)→ S5 信号(orders_2026-08-26.csv 20 只,落后 0 日)→ 面板 AppTest 四屏无异常。
+- `tools/tracer.py`:纯编排 run_stages(失败不中断、逐环节记录)+ 各环节判据只引用各卡既有入口(S1 覆盖率假阳性、
+  S5 数据不新鲜拒绝 = 正确行为,均明示);测试用假 runner 不跑长任务。`data.quality` 加 `--date`。
+- **示踪弹暴露并修复一个留档漏洞**:同日重跑 `run_factor_tests` 会覆盖首批 factor_verdict.md(样本外只评估一次的证据);
+  已恢复原件并改为 `factor_verdict_rerun{N}.md` 不覆盖(测试锁死)。阶段C 目录里重复的自研 CSV 清理。
+- **框架 v1 完工判据(蓝图第八节)达成:八卡全部完成,示踪弹贯通;打 tag `v1.0.0`。** 玩具策略永久保留为回归样例
+  (合成 store 上 tests/test_toy_lowvol_rq.py、test_signals.py、test_cn_stock_redlines.py、test_factor_pipeline.py 锁死)。
+- 测试 234→235 全绿。卡7 之后(蓝图):项目本地 skill(/收尾、/新任务卡)、第一个真策略的 S0 立项——由人类决定。
+
+## 2026-08-28 卡6 · 研发面板(Streamlit,只读 reports)
+
+- **人类验收:2026-08-28 放行(用户"继续"),开卡7 示踪弹。**
 
 - **里程碑达成:浏览器里看到卡3~5 的产出**。`streamlit run dashboard/app.py` 四屏:回测浏览器(净值对比 `*_navs.csv`
   归一化曲线 + 回撤 + 指标表;RQAlpha 报表 summary / 净值 vs 基准 / 期末持仓 / 成交明细)、因子 tear sheet(裁决总表解析自
